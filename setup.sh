@@ -5,15 +5,9 @@
 # Usage:
 #   curl -fsSL https://scripts.danplace.tech/idps.sh | bash
 #   curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/setup.sh | bash
+#   /bin/bash -c "$(curl -fsSL https://scripts.danplace.tech/idps.sh)"
 #
 set -u
-
-# Ensure input is connected to terminal when piped from curl
-if [ -z "${CAIDPS_NON_INTERACTIVE:-}" ] && [ -z "${CI:-}" ]; then
-  if [ ! -t 0 ] && [ -c /dev/tty ]; then
-    exec < /dev/tty
-  fi
-fi
 
 # ANSI color codes
 if [ -t 1 ]; then
@@ -37,6 +31,31 @@ else
   RED=""
   RESET=""
 fi
+
+# TTY-safe input reader that works even when the script is piped from curl
+read_tty() {
+  local prompt_str="$1"
+  local var_name="$2"
+  local is_secret="${3:-0}"
+  local input_val=""
+
+  if [ -c /dev/tty ] && [ -z "${CAIDPS_NON_INTERACTIVE:-}" ] && [ -z "${CI:-}" ]; then
+    if [ "$is_secret" -eq 1 ]; then
+      read -r -s -p "$prompt_str" input_val < /dev/tty
+      echo "" > /dev/tty 2>/dev/null || echo ""
+    else
+      read -r -p "$prompt_str" input_val < /dev/tty
+    fi
+  else
+    if [ "$is_secret" -eq 1 ]; then
+      read -r -s -p "$prompt_str" input_val 2>/dev/null || true
+      echo ""
+    else
+      read -r -p "$prompt_str" input_val 2>/dev/null || true
+    fi
+  fi
+  eval "$var_name=\"\$input_val\""
+}
 
 print_banner() {
   echo -e "${CYAN}${BOLD}"
@@ -73,23 +92,24 @@ if [ -f "./scripts/serve.sh" ] && [ -d "./prototype/backend" ]; then
   TARGET_DIR="$(pwd)"
 else
   DEFAULT_DIR="./IDPS-WebServer"
-  echo ""
-  echo -e "${BOLD}Step 0: Workspace Directory${RESET}"
-  echo "------------------------------------------------"
   if [ -d "$DEFAULT_DIR" ] && [ -f "${DEFAULT_DIR}/scripts/serve.sh" ]; then
+    echo ""
     echo -e "Found existing directory: ${BOLD}${DEFAULT_DIR}${RESET}"
-    read -r -p "Use and update this directory? [Y/n]: " use_existing
+    read_tty "Use and update this directory? [Y/n]: " use_existing
     case "${use_existing:-y}" in
       [yY]|[yY][eE][sS]|"")
         TARGET_DIR="$DEFAULT_DIR"
         ;;
       *)
-        read -r -p "Enter destination path for CAIDPS: " custom_dir
+        read_tty "Enter destination path for CAIDPS: " custom_dir
         TARGET_DIR="${custom_dir:-$DEFAULT_DIR}"
         ;;
     esac
   else
-    read -r -p "Installation directory [default: ${DEFAULT_DIR}]: " input_dir
+    echo ""
+    echo -e "${BOLD}Step 0: Workspace Directory${RESET}"
+    echo "------------------------------------------------"
+    read_tty "Installation directory [default: ${DEFAULT_DIR}]: " input_dir
     TARGET_DIR="${input_dir:-$DEFAULT_DIR}"
   fi
 fi
@@ -129,7 +149,7 @@ else
     echo "  1) GitHub Personal Access Token (PAT)"
     echo "  2) SSH (git@github.com:Jerit3787/IDPS-WebServer.git)"
     echo "  3) GitHub CLI (gh auth login)"
-    read -r -p "Choose authentication method [1-3, default: 1]: " auth_choice
+    read_tty "Choose authentication method [1-3, default: 1]: " auth_choice
     case "${auth_choice:-1}" in
       2|ssh)
         git clone --depth 1 -b "$REPO_BRANCH" "git@github.com:Jerit3787/IDPS-WebServer.git" "$TARGET_DIR" && CLONE_SUCCESS=1
@@ -143,8 +163,7 @@ else
         fi
         ;;
       *)
-        read -r -s -p "Enter GitHub Token: " pat_token
-        echo ""
+        read_tty "Enter GitHub Token: " pat_token 1
         if [ -n "$pat_token" ]; then
           git clone --depth 1 -b "$REPO_BRANCH" "https://${pat_token}@github.com/Jerit3787/IDPS-WebServer.git" "$TARGET_DIR" && CLONE_SUCCESS=1
         fi
@@ -174,7 +193,11 @@ echo ""
 # Launch the interactive wizard inside the repository
 if [ -f "./scripts/setup.sh" ]; then
   chmod +x ./scripts/setup.sh ./scripts/serve.sh ./scripts/caidps ./scripts/tunnel.sh 2>/dev/null || true
-  exec ./scripts/setup.sh "$@"
+  if [ -c /dev/tty ] && [ -t 1 ]; then
+    exec ./scripts/setup.sh "$@" < /dev/tty
+  else
+    exec ./scripts/setup.sh "$@"
+  fi
 else
   echo -e "${RED}[error] ./scripts/setup.sh not found in $(pwd)${RESET}" >&2
   exit 1
