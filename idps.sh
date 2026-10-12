@@ -173,7 +173,7 @@ echo ""
 
 # Launch the interactive wizard inside the repository
 if [ -f "./scripts/setup.sh" ]; then
-  chmod +x ./scripts/setup.sh ./scripts/serve.sh 2>/dev/null || true
+  chmod +x ./scripts/setup.sh ./scripts/serve.sh ./scripts/caidps ./scripts/tunnel.sh 2>/dev/null || true
   exec ./scripts/setup.sh "$@"
 else
   echo -e "${RED}[error] ./scripts/setup.sh not found in $(pwd)${RESET}" >&2
