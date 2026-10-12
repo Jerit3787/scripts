@@ -365,7 +365,7 @@ if [ -d "$TARGET_DIR" ] && [ -f "${TARGET_DIR}/scripts/serve.sh" ]; then
     git fetch origin "$REPO_BRANCH" 2>/dev/null || true
     git checkout "$REPO_BRANCH" 2>/dev/null || true
     git pull origin "$REPO_BRANCH" 2>/dev/null || true
-    git submodule update --init --recursive 2>/dev/null || true
+    # Submodules are initialized on-demand by scripts/serve.sh
   fi
 else
   echo ""
