@@ -239,6 +239,10 @@ configure_permissions() {
   chmod -R u+rwX "$dir" 2>/dev/null || true
   chmod +x "${dir}/scripts/"*.sh "${dir}/scripts/caidps" 2>/dev/null || true
 
+  # Security hardening: restrict directory to owner and group, block other local users
+  chmod 750 "$dir" 2>/dev/null || true
+  find "$dir" -maxdepth 4 -name ".env*" -not -name "*.example" -exec chmod 600 {} + 2>/dev/null || true
+
   # Ensure target non-root user owns the repository if run with sudo
   if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER}" != "root" ]; then
     chown -R "${ACTUAL_USER}:${ACTUAL_GROUP}" "$dir" 2>/dev/null || true
