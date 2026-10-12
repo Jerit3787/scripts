@@ -43,9 +43,9 @@ fi
 ACTUAL_GROUP="$(id -gn "${ACTUAL_USER}" 2>/dev/null || id -gn)"
 
 # Recommended server/system directory:
-# If root -> /opt/caidps (Linux FHS system standard)
-# If user -> ~/caidps (User-isolated standard)
-if [ "$(id -u)" -eq 0 ]; then
+# Linux -> /opt/caidps (Linux FHS system standard for standalone stacks)
+# macOS / Darwin -> ~/caidps (or /opt/caidps if root)
+if [ "$(uname -s)" = "Linux" ] || [ "$(id -u)" -eq 0 ]; then
   RECOMMENDED_DIR="/opt/caidps"
 else
   RECOMMENDED_DIR="${ACTUAL_HOME}/caidps"
@@ -322,22 +322,28 @@ else
   fi
 fi
 
-# Ensure parent directory exists with proper permissions
+# Ensure target installation directory exists and is writable by ACTUAL_USER
 parent_dir="$(dirname "$TARGET_DIR")"
 if [ ! -d "$parent_dir" ]; then
   if [ "$(id -u)" -eq 0 ]; then
     mkdir -p "$parent_dir"
   elif command -v sudo >/dev/null 2>&1; then
     sudo mkdir -p "$parent_dir"
-    sudo chown -R "${ACTUAL_USER}:${ACTUAL_GROUP}" "$parent_dir"
   else
     mkdir -p "$parent_dir" 2>/dev/null || true
   fi
 fi
 
-if [ -d "$parent_dir" ] && [ ! -w "$parent_dir" ]; then
-  if command -v sudo >/dev/null 2>&1; then
-    sudo chown "${ACTUAL_USER}:${ACTUAL_GROUP}" "$parent_dir" 2>/dev/null || true
+if [ ! -d "$TARGET_DIR" ]; then
+  if [ "$(id -u)" -eq 0 ]; then
+    mkdir -p "$TARGET_DIR"
+  elif [ ! -w "$parent_dir" ]; then
+    if command -v sudo >/dev/null 2>&1; then
+      sudo mkdir -p "$TARGET_DIR"
+      sudo chown -R "${ACTUAL_USER}:${ACTUAL_GROUP}" "$TARGET_DIR" 2>/dev/null || true
+    fi
+  else
+    mkdir -p "$TARGET_DIR" 2>/dev/null || true
   fi
 fi
 
