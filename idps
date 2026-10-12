@@ -72,15 +72,100 @@ print_banner() {
 
 print_banner
 
-# Step 0: Pre-flight checks
-if ! command -v git >/dev/null 2>&1; then
-  echo -e "${RED}[error] git is required but not installed.${RESET}" >&2
-  echo "Please install git first:" >&2
-  echo "  • macOS:        xcode-select --install  OR  brew install git" >&2
-  echo "  • Ubuntu/Debian: sudo apt-get install -y git" >&2
-  echo "  • Fedora/RHEL:   sudo dnf install -y git" >&2
-  exit 1
-fi
+ensure_git() {
+  if command -v git >/dev/null 2>&1; then
+    return 0
+  fi
+  echo -e "${YELLOW}[setup] git is not installed. Installing git automatically...${RESET}"
+  local os_type
+  os_type="$(uname -s)"
+  local SUDO=""
+  if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+    SUDO="sudo"
+  fi
+
+  case "$os_type" in
+    Linux)
+      if command -v apt-get >/dev/null 2>&1; then
+        $SUDO apt-get update -y && $SUDO apt-get install -y git git-lfs curl
+      elif command -v dnf >/dev/null 2>&1; then
+        $SUDO dnf install -y git git-lfs curl
+      elif command -v yum >/dev/null 2>&1; then
+        $SUDO yum install -y git git-lfs curl
+      elif command -v pacman >/dev/null 2>&1; then
+        $SUDO pacman -Sy --noconfirm git git-lfs curl
+      elif command -v apk >/dev/null 2>&1; then
+        apk add --no-cache git git-lfs curl bash
+      else
+        echo -e "${RED}[error] Unsupported Linux package manager. Please install git manually.${RESET}" >&2
+        return 1
+      fi
+      ;;
+    Darwin)
+      if command -v brew >/dev/null 2>&1; then
+        brew install git git-lfs
+      elif ! xcode-select -p >/dev/null 2>&1; then
+        echo -e "${YELLOW}[setup] Prompting Apple Developer Command Line Tools install...${RESET}"
+        xcode-select --install
+        echo "Please complete the installation dialog and re-run this command."
+        return 1
+      fi
+      ;;
+    *)
+      echo -e "${RED}[error] Unsupported operating system: $os_type${RESET}" >&2
+      return 1
+      ;;
+  esac
+
+  if ! command -v git >/dev/null 2>&1; then
+    echo -e "${RED}[error] git installation could not be completed automatically.${RESET}" >&2
+    return 1
+  fi
+  echo -e "${GREEN}[setup] git installed successfully!${RESET}"
+}
+
+ensure_lfs() {
+  if command -v git-lfs >/dev/null 2>&1 || git lfs version >/dev/null 2>&1; then
+    return 0
+  fi
+  echo -e "${YELLOW}[setup] git-lfs is not installed. Installing git-lfs automatically...${RESET}"
+  local os_type
+  os_type="$(uname -s)"
+  local SUDO=""
+  if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+    SUDO="sudo"
+  fi
+
+  case "$os_type" in
+    Linux)
+      if command -v apt-get >/dev/null 2>&1; then
+        $SUDO apt-get update -y && $SUDO apt-get install -y git-lfs
+      elif command -v dnf >/dev/null 2>&1; then
+        $SUDO dnf install -y git-lfs
+      elif command -v yum >/dev/null 2>&1; then
+        $SUDO yum install -y git-lfs
+      elif command -v pacman >/dev/null 2>&1; then
+        $SUDO pacman -Sy --noconfirm git-lfs
+      elif command -v apk >/dev/null 2>&1; then
+        apk add --no-cache git-lfs
+      fi
+      ;;
+    Darwin)
+      if command -v brew >/dev/null 2>&1; then
+        brew install git-lfs
+      fi
+      ;;
+  esac
+
+  if command -v git-lfs >/dev/null 2>&1 || git lfs version >/dev/null 2>&1; then
+    git lfs install 2>/dev/null || true
+    echo -e "${GREEN}[setup] git-lfs installed successfully!${RESET}"
+  fi
+}
+
+# Step 0: Ensure git and git-lfs are installed
+ensure_git || exit 1
+ensure_lfs || true
 
 REPO_URL="https://github.com/Jerit3787/IDPS-WebServer.git"
 REPO_BRANCH="fyp2-real-detection"
