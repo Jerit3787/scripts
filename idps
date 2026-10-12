@@ -32,6 +32,25 @@ else
   RESET=""
 fi
 
+# Resolve effective non-root user and home directory
+if [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER}" != "root" ]; then
+  ACTUAL_USER="${SUDO_USER}"
+  ACTUAL_HOME="$(eval echo ~${SUDO_USER})"
+else
+  ACTUAL_USER="$(id -un)"
+  ACTUAL_HOME="${HOME}"
+fi
+ACTUAL_GROUP="$(id -gn "${ACTUAL_USER}" 2>/dev/null || id -gn)"
+
+# Recommended server/system directory:
+# If root -> /opt/caidps (Linux FHS system standard)
+# If user -> ~/caidps (User-isolated standard)
+if [ "$(id -u)" -eq 0 ]; then
+  RECOMMENDED_DIR="/opt/caidps"
+else
+  RECOMMENDED_DIR="${ACTUAL_HOME}/caidps"
+fi
+
 # TTY-safe input reader that works even when the script is piped from curl
 read_tty() {
   local prompt_str="$1"
@@ -66,7 +85,7 @@ print_banner() {
   echo " \____/_/   \_\___|____/|_|   |____/ "
   echo -e "${RESET}"
   echo -e "${BOLD}Context-Aware Intrusion Detection & Prevention System${RESET}"
-  echo -e "${DIM}Automated Downloader & Interactive Setup Wizard${RESET}"
+  echo -e "${DIM}Automated Server Downloader & Interactive Setup Wizard${RESET}"
   echo "─────────────────────────────────────────────────────────────────"
 }
 
@@ -163,6 +182,59 @@ ensure_lfs() {
   fi
 }
 
+configure_permissions() {
+  local dir="$1"
+  echo -e "${GREEN}[setup] Configuring directory permissions and execution bits...${RESET}"
+  chmod -R u+rwX "$dir" 2>/dev/null || true
+  chmod +x "${dir}/scripts/"*.sh "${dir}/scripts/caidps" 2>/dev/null || true
+
+  # Ensure target non-root user owns the repository if run with sudo
+  if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER}" != "root" ]; then
+    chown -R "${ACTUAL_USER}:${ACTUAL_GROUP}" "$dir" 2>/dev/null || true
+  fi
+
+  # Git safe directory (prevents CVE-2022-24765 dubious ownership warnings across users)
+  if command -v git >/dev/null 2>&1; then
+    git config --global --add safe.directory "$dir" 2>/dev/null || true
+    if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER}" != "root" ]; then
+      su - "${ACTUAL_USER}" -c "git config --global --add safe.directory '${dir}'" 2>/dev/null || true
+    fi
+  fi
+
+  # Docker permissions: add user to docker group if on Linux so docker commands never need sudo
+  if [ "$(uname -s)" = "Linux" ] && command -v docker >/dev/null 2>&1; then
+    if ! getent group docker >/dev/null 2>&1; then
+      if [ "$(id -u)" -eq 0 ]; then
+        groupadd docker 2>/dev/null || true
+      elif command -v sudo >/dev/null 2>&1; then
+        sudo groupadd docker 2>/dev/null || true
+      fi
+    fi
+    if getent group docker >/dev/null 2>&1; then
+      if ! id -nG "$ACTUAL_USER" 2>/dev/null | grep -qw "docker"; then
+        echo -e "${YELLOW}[setup] Adding ${ACTUAL_USER} to the docker group for passwordless access...${RESET}"
+        if [ "$(id -u)" -eq 0 ]; then
+          usermod -aG docker "$ACTUAL_USER" 2>/dev/null || true
+        elif command -v sudo >/dev/null 2>&1; then
+          sudo usermod -aG docker "$ACTUAL_USER" 2>/dev/null || true
+        fi
+      fi
+    fi
+  fi
+
+  # Link caidps CLI globally to PATH
+  if [ -f "${dir}/scripts/caidps" ]; then
+    if [ -w "/usr/local/bin" ]; then
+      ln -sf "${dir}/scripts/caidps" /usr/local/bin/caidps 2>/dev/null || true
+    elif command -v sudo >/dev/null 2>&1; then
+      sudo ln -sf "${dir}/scripts/caidps" /usr/local/bin/caidps 2>/dev/null || true
+    else
+      mkdir -p "${ACTUAL_HOME}/.local/bin" 2>/dev/null || true
+      ln -sf "${dir}/scripts/caidps" "${ACTUAL_HOME}/.local/bin/caidps" 2>/dev/null || true
+    fi
+  fi
+}
+
 # Step 0: Ensure git and git-lfs are installed
 ensure_git || exit 1
 ensure_lfs || true
@@ -176,26 +248,51 @@ if [ -f "./scripts/serve.sh" ] && [ -d "./prototype/backend" ]; then
   echo -e "${GREEN}[info] Detected existing CAIDPS repository in current directory: $(pwd)${RESET}"
   TARGET_DIR="$(pwd)"
 else
-  DEFAULT_DIR="./IDPS-WebServer"
-  if [ -d "$DEFAULT_DIR" ] && [ -f "${DEFAULT_DIR}/scripts/serve.sh" ]; then
+  if [ -d "$RECOMMENDED_DIR" ] && [ -f "${RECOMMENDED_DIR}/scripts/serve.sh" ]; then
     echo ""
-    echo -e "Found existing directory: ${BOLD}${DEFAULT_DIR}${RESET}"
-    read_tty "Use and update this directory? [Y/n]: " use_existing
+    echo -e "Found existing installation at: ${BOLD}${RECOMMENDED_DIR}${RESET}"
+    read_tty "Update and use this installation? [Y/n]: " use_existing
     case "${use_existing:-y}" in
       [yY]|[yY][eE][sS]|"")
-        TARGET_DIR="$DEFAULT_DIR"
+        TARGET_DIR="$RECOMMENDED_DIR"
         ;;
       *)
         read_tty "Enter destination path for CAIDPS: " custom_dir
-        TARGET_DIR="${custom_dir:-$DEFAULT_DIR}"
+        TARGET_DIR="${custom_dir:-$RECOMMENDED_DIR}"
         ;;
     esac
   else
     echo ""
-    echo -e "${BOLD}Step 0: Workspace Directory${RESET}"
+    echo -e "${BOLD}Step 0: Installation Location${RESET}"
     echo "------------------------------------------------"
-    read_tty "Installation directory [default: ${DEFAULT_DIR}]: " input_dir
-    TARGET_DIR="${input_dir:-$DEFAULT_DIR}"
+    echo -e "Recommended location : ${BOLD}${CYAN}${RECOMMENDED_DIR}${RESET}"
+    read_tty "Installation path [default: ${RECOMMENDED_DIR}]: " input_dir
+    TARGET_DIR="${input_dir:-$RECOMMENDED_DIR}"
+  fi
+fi
+
+# Ensure parent directory exists with proper permissions
+parent_dir="$(dirname "$TARGET_DIR")"
+if [ ! -d "$parent_dir" ]; then
+  if [ "$(id -u)" -eq 0 ]; then
+    mkdir -p "$parent_dir"
+  elif command -v sudo >/dev/null 2>&1; then
+    sudo mkdir -p "$parent_dir"
+    sudo chown -R "${ACTUAL_USER}:${ACTUAL_GROUP}" "$parent_dir"
+  else
+    mkdir -p "$parent_dir" 2>/dev/null || true
+  fi
+fi
+
+if [ -d "$parent_dir" ] && [ ! -w "$parent_dir" ]; then
+  if command -v sudo >/dev/null 2>&1; then
+    sudo chown "${ACTUAL_USER}:${ACTUAL_GROUP}" "$parent_dir" 2>/dev/null || true
+  fi
+fi
+
+if [ -d "$TARGET_DIR" ] && [ ! -w "$TARGET_DIR" ]; then
+  if command -v sudo >/dev/null 2>&1; then
+    sudo chown -R "${ACTUAL_USER}:${ACTUAL_GROUP}" "$TARGET_DIR" 2>/dev/null || true
   fi
 fi
 
@@ -266,18 +363,21 @@ else
   git submodule update --init --recursive 2>/dev/null || true
 fi
 
-# Ensure git-lfs is pulled if git-lfs is present
+# Ensure git-lfs model weights are pulled
 if command -v git-lfs >/dev/null 2>&1 || git lfs version >/dev/null 2>&1; then
   echo -e "${GREEN}[lfs] Checking Git LFS model weights...${RESET}"
   git lfs pull 2>/dev/null || true
 fi
 
-echo -e "${GREEN}[setup] Repository ready. Starting interactive setup wizard...${RESET}"
+# Configure all permissions across the repository and docker group
+configure_permissions "$TARGET_DIR"
+
+echo -e "${GREEN}[setup] Repository ready at ${TARGET_DIR}.${RESET}"
+echo -e "${GREEN}[setup] Starting interactive setup wizard...${RESET}"
 echo ""
 
 # Launch the interactive wizard inside the repository
 if [ -f "./scripts/setup.sh" ]; then
-  chmod +x ./scripts/setup.sh ./scripts/serve.sh ./scripts/caidps ./scripts/tunnel.sh 2>/dev/null || true
   if [ -c /dev/tty ] && [ -t 1 ]; then
     exec ./scripts/setup.sh "$@" < /dev/tty
   else
