@@ -182,6 +182,57 @@ ensure_lfs() {
   fi
 }
 
+ensure_gh() {
+  if command -v gh >/dev/null 2>&1; then
+    return 0
+  fi
+  echo -e "${YELLOW}[setup] GitHub CLI (gh) is not installed. Installing gh automatically...${RESET}"
+  local os_type
+  os_type="$(uname -s)"
+  local SUDO=""
+  if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+    SUDO="sudo"
+  fi
+
+  case "$os_type" in
+    Linux)
+      if command -v apt-get >/dev/null 2>&1; then
+        if $SUDO apt-get update -y && $SUDO apt-get install -y gh 2>/dev/null; then
+          true
+        fi
+        if ! command -v gh >/dev/null 2>&1; then
+          $SUDO mkdir -p -m 755 /etc/apt/keyrings 2>/dev/null || true
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | $SUDO tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null 2>&1 || true
+          $SUDO chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg 2>/dev/null || true
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | $SUDO tee /etc/apt/sources.list.d/github-cli.list > /dev/null 2>&1 || true
+          $SUDO apt-get update -y && $SUDO apt-get install -y gh 2>/dev/null || true
+        fi
+      elif command -v dnf >/dev/null 2>&1; then
+        $SUDO dnf install -y gh 2>/dev/null || true
+      elif command -v yum >/dev/null 2>&1; then
+        $SUDO yum install -y gh 2>/dev/null || true
+      elif command -v pacman >/dev/null 2>&1; then
+        $SUDO pacman -Sy --noconfirm github-cli 2>/dev/null || true
+      elif command -v apk >/dev/null 2>&1; then
+        apk add --no-cache github-cli 2>/dev/null || $SUDO apk add --no-cache github-cli 2>/dev/null || true
+      fi
+      ;;
+    Darwin)
+      if command -v brew >/dev/null 2>&1; then
+        brew install gh 2>/dev/null || true
+      fi
+      ;;
+  esac
+
+  if command -v gh >/dev/null 2>&1; then
+    echo -e "${GREEN}[setup] GitHub CLI (gh) installed successfully!${RESET}"
+    return 0
+  else
+    echo -e "${YELLOW}[setup] Could not automatically install gh CLI. Continuing with alternate auth methods...${RESET}"
+    return 1
+  fi
+}
+
 configure_permissions() {
   local dir="$1"
   echo -e "${GREEN}[setup] Configuring directory permissions and execution bits...${RESET}"
@@ -312,43 +363,93 @@ else
   
   CLONE_SUCCESS=0
 
-  # Attempt 1: Standard git clone
-  if git clone --depth 1 -b "$REPO_BRANCH" "$REPO_URL" "$TARGET_DIR" 2>/dev/null; then
-    CLONE_SUCCESS=1
-  fi
-
-  # Attempt 2: If standard clone failed, check if gh CLI is available
-  if [ "$CLONE_SUCCESS" -eq 0 ] && command -v gh >/dev/null 2>&1; then
-    echo -e "${YELLOW}[git] Public clone failed, attempting clone via GitHub CLI (gh)...${RESET}"
-    if gh repo clone Jerit3787/IDPS-WebServer "$TARGET_DIR" -- --depth 1 -b "$REPO_BRANCH" 2>/dev/null; then
+  # Check 1: GITHUB_TOKEN or GH_TOKEN from environment
+  if [ -n "${GITHUB_TOKEN:-}" ] || [ -n "${GH_TOKEN:-}" ]; then
+    auth_env_token="${GITHUB_TOKEN:-${GH_TOKEN}}"
+    echo -e "${GREEN}[auth] Detected GITHUB_TOKEN in environment, cloning...${RESET}"
+    if git clone --depth 1 -b "$REPO_BRANCH" "https://${auth_env_token}@github.com/Jerit3787/IDPS-WebServer.git" "$TARGET_DIR" 2>/dev/null; then
       CLONE_SUCCESS=1
     fi
   fi
 
-  # Attempt 3: If still failing, prompt user for auth method (handles private repo)
+  # Check 2: Existing gh CLI authentication
+  if [ "$CLONE_SUCCESS" -eq 0 ] && command -v gh >/dev/null 2>&1; then
+    if gh auth status >/dev/null 2>&1; then
+      echo -e "${GREEN}[auth] Authenticated GitHub CLI detected. Cloning Jerit3787/IDPS-WebServer...${RESET}"
+      if [ -c /dev/tty ]; then
+        if gh repo clone Jerit3787/IDPS-WebServer "$TARGET_DIR" -- --depth 1 -b "$REPO_BRANCH" < /dev/tty; then
+          CLONE_SUCCESS=1
+        fi
+      else
+        if gh repo clone Jerit3787/IDPS-WebServer "$TARGET_DIR" -- --depth 1 -b "$REPO_BRANCH"; then
+          CLONE_SUCCESS=1
+        fi
+      fi
+    fi
+  fi
+
+  # Check 3: Public non-interactive clone (GIT_TERMINAL_PROMPT=0 prevents any blocking username prompt)
   if [ "$CLONE_SUCCESS" -eq 0 ]; then
-    echo -e "${YELLOW}[auth] Repository requires GitHub authentication.${RESET}"
-    echo "  1) GitHub Personal Access Token (PAT)"
-    echo "  2) SSH (git@github.com:Jerit3787/IDPS-WebServer.git)"
-    echo "  3) GitHub CLI (gh auth login)"
+    if GIT_TERMINAL_PROMPT=0 git clone --depth 1 -b "$REPO_BRANCH" "$REPO_URL" "$TARGET_DIR" 2>/dev/null; then
+      CLONE_SUCCESS=1
+    fi
+  fi
+
+  # Check 4: Private repository authentication wizard
+  if [ "$CLONE_SUCCESS" -eq 0 ]; then
+    echo ""
+    echo -e "${YELLOW}[auth] Repository Jerit3787/IDPS-WebServer requires GitHub authentication.${RESET}"
+    echo "How would you like to authenticate?"
+    echo -e "  ${BOLD}1)${RESET} GitHub CLI (${BOLD}gh auth login${RESET}) ${GREEN}(Recommended)${RESET} — Web browser code or token"
+    echo -e "  ${BOLD}2)${RESET} Personal Access Token (PAT) — Paste token directly"
+    echo -e "  ${BOLD}3)${RESET} SSH Key — git@github.com:Jerit3787/IDPS-WebServer.git"
+    echo ""
     read_tty "Choose authentication method [1-3, default: 1]: " auth_choice
     case "${auth_choice:-1}" in
-      2|ssh)
-        git clone --depth 1 -b "$REPO_BRANCH" "git@github.com:Jerit3787/IDPS-WebServer.git" "$TARGET_DIR" && CLONE_SUCCESS=1
-        ;;
-      3|gh)
-        if ! command -v gh >/dev/null 2>&1; then
-          echo "[error] gh CLI is not installed." >&2
+      1|gh)
+        ensure_gh || true
+        if command -v gh >/dev/null 2>&1; then
+          if ! gh auth status >/dev/null 2>&1; then
+            echo ""
+            echo -e "${CYAN}[auth] Launching GitHub CLI login wizard...${RESET}"
+            if [ -c /dev/tty ]; then
+              gh auth login < /dev/tty > /dev/tty 2>&1 || true
+            else
+              gh auth login || true
+            fi
+          fi
+          echo -e "${GREEN}[git] Cloning repository with GitHub CLI...${RESET}"
+          if [ -c /dev/tty ]; then
+            if gh repo clone Jerit3787/IDPS-WebServer "$TARGET_DIR" -- --depth 1 -b "$REPO_BRANCH" < /dev/tty; then
+              CLONE_SUCCESS=1
+            fi
+          else
+            if gh repo clone Jerit3787/IDPS-WebServer "$TARGET_DIR" -- --depth 1 -b "$REPO_BRANCH"; then
+              CLONE_SUCCESS=1
+            fi
+          fi
         else
-          gh auth login
-          gh repo clone Jerit3787/IDPS-WebServer "$TARGET_DIR" -- --depth 1 -b "$REPO_BRANCH" && CLONE_SUCCESS=1
+          echo -e "${RED}[error] gh CLI could not be installed. Please choose Option 2 (PAT) or Option 3 (SSH).${RESET}" >&2
+        fi
+        ;;
+      2|token|pat)
+        echo ""
+        read_tty "Enter your GitHub Personal Access Token (PAT): " pat_token 1
+        if [ -n "$pat_token" ]; then
+          echo -e "${GREEN}[git] Cloning repository using token...${RESET}"
+          if git clone --depth 1 -b "$REPO_BRANCH" "https://${pat_token}@github.com/Jerit3787/IDPS-WebServer.git" "$TARGET_DIR"; then
+            CLONE_SUCCESS=1
+          fi
+        fi
+        ;;
+      3|ssh)
+        echo -e "${GREEN}[git] Cloning repository using SSH...${RESET}"
+        if git clone --depth 1 -b "$REPO_BRANCH" "git@github.com:Jerit3787/IDPS-WebServer.git" "$TARGET_DIR"; then
+          CLONE_SUCCESS=1
         fi
         ;;
       *)
-        read_tty "Enter GitHub Token: " pat_token 1
-        if [ -n "$pat_token" ]; then
-          git clone --depth 1 -b "$REPO_BRANCH" "https://${pat_token}@github.com/Jerit3787/IDPS-WebServer.git" "$TARGET_DIR" && CLONE_SUCCESS=1
-        fi
+        echo -e "${RED}[error] Invalid choice.${RESET}" >&2
         ;;
     esac
   fi
