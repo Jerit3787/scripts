@@ -91,6 +91,50 @@ print_banner() {
 
 print_banner
 
+ensure_whiptail() {
+  if command -v whiptail >/dev/null 2>&1; then
+    return 0
+  fi
+  local os_type
+  os_type="$(uname -s)"
+  local SUDO=""
+  if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+    SUDO="sudo"
+  fi
+  case "$os_type" in
+    Linux)
+      if command -v apt-get >/dev/null 2>&1; then
+        echo -e "${YELLOW}[setup] Installing whiptail for interactive wizard...${RESET}"
+        $SUDO apt-get update -y >/dev/null 2>&1 && $SUDO apt-get install -y whiptail >/dev/null 2>&1 || true
+      elif command -v dnf >/dev/null 2>&1; then
+        echo -e "${YELLOW}[setup] Installing newt (whiptail) for interactive wizard...${RESET}"
+        $SUDO dnf install -y newt >/dev/null 2>&1 || true
+      elif command -v yum >/dev/null 2>&1; then
+        echo -e "${YELLOW}[setup] Installing newt (whiptail) for interactive wizard...${RESET}"
+        $SUDO yum install -y newt >/dev/null 2>&1 || true
+      elif command -v pacman >/dev/null 2>&1; then
+        $SUDO pacman -Sy --noconfirm libnewt >/dev/null 2>&1 || true
+      elif command -v apk >/dev/null 2>&1; then
+        $SUDO apk add --no-cache newt >/dev/null 2>&1 || true
+      fi
+      ;;
+    Darwin)
+      if command -v brew >/dev/null 2>&1; then
+        echo -e "${YELLOW}[setup] Installing newt (whiptail) via Homebrew...${RESET}"
+        brew install newt >/dev/null 2>&1 || true
+      fi
+      ;;
+  esac
+  command -v whiptail >/dev/null 2>&1
+}
+
+USE_TUI=0
+if { true < /dev/tty; } 2>/dev/null && [ -z "${CAIDPS_NON_INTERACTIVE:-}" ] && [ -z "${CI:-}" ]; then
+  if ensure_whiptail; then
+    USE_TUI=1
+  fi
+fi
+
 ensure_git() {
   if command -v git >/dev/null 2>&1; then
     return 0
@@ -304,25 +348,43 @@ if [ -f "./scripts/serve.sh" ] && [ -d "./prototype/backend" ]; then
   TARGET_DIR="$(pwd)"
 else
   if [ -d "$RECOMMENDED_DIR" ] && [ -f "${RECOMMENDED_DIR}/scripts/serve.sh" ]; then
-    echo ""
-    echo -e "Found existing installation at: ${BOLD}${RECOMMENDED_DIR}${RESET}"
-    read_tty "Update and use this installation? [Y/n]: " use_existing
-    case "${use_existing:-y}" in
-      [yY]|[yY][eE][sS]|"")
+    if [ "$USE_TUI" -eq 1 ]; then
+      if whiptail --title "CAIDPS Installation" --backtitle "CAIDPS Installer" \
+        --yesno "Found existing CAIDPS installation at:\n${RECOMMENDED_DIR}\n\nUpdate and use this existing installation?" 12 70 \
+        3>&1 1>&2 2>&3 < /dev/tty; then
         TARGET_DIR="$RECOMMENDED_DIR"
-        ;;
-      *)
-        read_tty "Enter destination path for CAIDPS: " custom_dir
-        TARGET_DIR="${custom_dir:-$RECOMMENDED_DIR}"
-        ;;
-    esac
+      else
+        TARGET_DIR=$(whiptail --title "CAIDPS Installation" --backtitle "CAIDPS Installer" \
+          --inputbox "Enter destination path for CAIDPS:" 10 70 "$RECOMMENDED_DIR" \
+          3>&1 1>&2 2>&3 < /dev/tty || echo "$RECOMMENDED_DIR")
+      fi
+    else
+      echo ""
+      echo -e "Found existing installation at: ${BOLD}${RECOMMENDED_DIR}${RESET}"
+      read_tty "Update and use this installation? [Y/n]: " use_existing
+      case "${use_existing:-y}" in
+        [yY]|[yY][eE][sS]|"")
+          TARGET_DIR="$RECOMMENDED_DIR"
+          ;;
+        *)
+          read_tty "Enter destination path for CAIDPS: " custom_dir
+          TARGET_DIR="${custom_dir:-$RECOMMENDED_DIR}"
+          ;;
+      esac
+    fi
   else
-    echo ""
-    echo -e "${BOLD}Step 0: Installation Location${RESET}"
-    echo "------------------------------------------------"
-    echo -e "Recommended location : ${BOLD}${CYAN}${RECOMMENDED_DIR}${RESET}"
-    read_tty "Installation path [default: ${RECOMMENDED_DIR}]: " input_dir
-    TARGET_DIR="${input_dir:-$RECOMMENDED_DIR}"
+    if [ "$USE_TUI" -eq 1 ]; then
+      TARGET_DIR=$(whiptail --title "CAIDPS Installation" --backtitle "CAIDPS Installer" \
+        --inputbox "Choose installation location for CAIDPS:\n(Linux system standard: /opt/caidps)" 12 70 "$RECOMMENDED_DIR" \
+        3>&1 1>&2 2>&3 < /dev/tty || echo "$RECOMMENDED_DIR")
+    else
+      echo ""
+      echo -e "${BOLD}Step 0: Installation Location${RESET}"
+      echo "------------------------------------------------"
+      echo -e "Recommended location : ${BOLD}${CYAN}${RECOMMENDED_DIR}${RESET}"
+      read_tty "Installation path [default: ${RECOMMENDED_DIR}]: " input_dir
+      TARGET_DIR="${input_dir:-$RECOMMENDED_DIR}"
+    fi
   fi
 fi
 
@@ -407,19 +469,34 @@ else
 
   # Check 4: Private repository authentication wizard
   if [ "$CLONE_SUCCESS" -eq 0 ]; then
-    echo ""
-    echo -e "${YELLOW}[auth] Repository Jerit3787/IDPS-WebServer requires GitHub authentication.${RESET}"
-    echo "How would you like to authenticate?"
-    echo -e "  ${BOLD}1)${RESET} GitHub CLI (${BOLD}gh auth login${RESET}) ${GREEN}(Recommended)${RESET} — Web browser code or token"
-    echo -e "  ${BOLD}2)${RESET} Personal Access Token (PAT) — Paste token directly"
-    echo -e "  ${BOLD}3)${RESET} SSH Key — git@github.com:Jerit3787/IDPS-WebServer.git"
-    echo ""
-    read_tty "Choose authentication method [1-3, default: 1]: " auth_choice
+    auth_choice=""
+    if [ "$USE_TUI" -eq 1 ]; then
+      auth_choice=$(whiptail --title "GitHub Authentication" --backtitle "CAIDPS Installer" \
+        --menu "Repository Jerit3787/IDPS-WebServer requires GitHub authentication.\nChoose authentication method:" 16 78 3 \
+        "1" "GitHub CLI (Recommended — browser login code or token)" \
+        "2" "Personal Access Token (PAT) — paste token directly" \
+        "3" "SSH Key — git@github.com:Jerit3787/IDPS-WebServer.git" \
+        3>&1 1>&2 2>&3 < /dev/tty || echo "1")
+    else
+      echo ""
+      echo -e "${YELLOW}[auth] Repository Jerit3787/IDPS-WebServer requires GitHub authentication.${RESET}"
+      echo "How would you like to authenticate?"
+      echo -e "  ${BOLD}1)${RESET} GitHub CLI (${BOLD}gh auth login${RESET}) ${GREEN}(Recommended)${RESET} — Web browser code or token"
+      echo -e "  ${BOLD}2)${RESET} Personal Access Token (PAT) — Paste token directly"
+      echo -e "  ${BOLD}3)${RESET} SSH Key — git@github.com:Jerit3787/IDPS-WebServer.git"
+      echo ""
+      read_tty "Choose authentication method [1-3, default: 1]: " auth_choice
+    fi
     case "${auth_choice:-1}" in
       1|gh)
         ensure_gh || true
         if command -v gh >/dev/null 2>&1; then
           if ! gh auth status >/dev/null 2>&1; then
+            if [ "$USE_TUI" -eq 1 ]; then
+              whiptail --title "GitHub Login" --backtitle "CAIDPS Installer" \
+                --msgbox "GitHub CLI will now open in the terminal.\n\nFollow the instructions to authorize your GitHub account in your browser.\nPress OK to begin." 12 70 < /dev/tty
+              clear
+            fi
             echo ""
             echo -e "${CYAN}[auth] Launching GitHub CLI login wizard...${RESET}"
             if [ -c /dev/tty ]; then
@@ -445,7 +522,13 @@ else
         ;;
       2|token|pat)
         echo ""
-        read_tty "Enter your GitHub Personal Access Token (PAT): " pat_token 1
+        if [ "$USE_TUI" -eq 1 ]; then
+          pat_token=$(whiptail --title "GitHub Personal Access Token" --backtitle "CAIDPS Installer" \
+            --passwordbox "Enter your GitHub Personal Access Token (PAT):" 10 70 \
+            3>&1 1>&2 2>&3 < /dev/tty || echo "")
+        else
+          read_tty "Enter your GitHub Personal Access Token (PAT): " pat_token 1
+        fi
         if [ -n "$pat_token" ]; then
           echo -e "${GREEN}[git] Cloning repository using token...${RESET}"
           if git clone --depth 1 -b "$REPO_BRANCH" "https://${pat_token}@github.com/Jerit3787/IDPS-WebServer.git" "$TARGET_DIR"; then
