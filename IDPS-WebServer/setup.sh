@@ -428,6 +428,7 @@ else
               gh auth login || true
             fi
           fi
+          gh auth setup-git 2>/dev/null || true
           echo -e "${GREEN}[git] Cloning repository with GitHub CLI...${RESET}"
           if [ -c /dev/tty ]; then
             if gh repo clone Jerit3787/IDPS-WebServer "$TARGET_DIR" -- --depth 1 -b "$REPO_BRANCH" < /dev/tty; then
@@ -471,13 +472,22 @@ else
   fi
 
   cd "$TARGET_DIR" || exit 1
-  git submodule update --init --recursive 2>/dev/null || true
+fi
+
+# Ensure git credentials are configured for LFS and submodules if gh is authenticated
+if command -v gh >/dev/null 2>&1; then
+  gh auth setup-git 2>/dev/null || true
 fi
 
 # Ensure git-lfs model weights are pulled
 if command -v git-lfs >/dev/null 2>&1 || git lfs version >/dev/null 2>&1; then
   echo -e "${GREEN}[lfs] Checking Git LFS model weights...${RESET}"
-  git lfs pull 2>/dev/null || true
+  git lfs install --local 2>/dev/null || true
+  if [ -c /dev/tty ]; then
+    GIT_TERMINAL_PROMPT=0 git lfs pull < /dev/tty || true
+  else
+    GIT_TERMINAL_PROMPT=0 git lfs pull || true
+  fi
 fi
 
 # Configure all permissions across the repository and docker group
