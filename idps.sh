@@ -557,6 +557,9 @@ else
   cd "$TARGET_DIR" || exit 1
 fi
 
+# Ensure shallow clones can discover and switch between all remote branches on origin
+git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*" 2>/dev/null || true
+
 # Ensure git credentials are configured for LFS and submodules if gh is authenticated
 if command -v gh >/dev/null 2>&1; then
   gh auth setup-git 2>/dev/null || true
