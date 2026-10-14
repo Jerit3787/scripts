@@ -3,11 +3,18 @@
 # Automated repository clone, environment bootstrap, and guided stack launcher.
 #
 # Usage:
-#   curl -fsSL https://scripts.danplace.tech/idps.sh | bash
 #   curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/setup.sh | bash
-#   /bin/bash -c "$(curl -fsSL https://scripts.danplace.tech/idps.sh)"
+#   curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/setup.sh | bash -s -- <setup.sh options>
+#
+# Environment:
+#   GITHUB_TOKEN / GH_TOKEN   token for a private clone (used for this run only; never written to disk)
+#   CAIDPS_NON_INTERACTIVE=1  take every default without prompting
 #
 set -u
+
+# Everything runs from main(), called on the last line: if a `curl | bash` download is cut
+# short, bash never reaches the call and nothing half-runs.
+main() {
 
 # ANSI color codes
 if [ -t 1 ]; then
@@ -35,7 +42,8 @@ fi
 # Resolve effective non-root user and home directory
 if [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER}" != "root" ]; then
   ACTUAL_USER="${SUDO_USER}"
-  ACTUAL_HOME="$(eval echo ~${SUDO_USER})"
+  ACTUAL_HOME="$(getent passwd "${SUDO_USER}" 2>/dev/null | cut -d: -f6)"
+  [ -n "${ACTUAL_HOME}" ] || ACTUAL_HOME="$(eval echo "~${SUDO_USER}")"
 else
   ACTUAL_USER="$(id -un)"
   ACTUAL_HOME="${HOME}"
@@ -51,6 +59,13 @@ else
   RECOMMENDED_DIR="${ACTUAL_HOME}/caidps"
 fi
 
+# A terminal we can actually read from? (/dev/tty exists even without a controlling terminal,
+# e.g. under cron, CI or a provisioning tool, but then it cannot be opened.)
+HAS_TTY=0
+if { true < /dev/tty; } 2>/dev/null; then
+  HAS_TTY=1
+fi
+
 # TTY-safe input reader that works even when the script is piped from curl
 read_tty() {
   local prompt_str="$1"
@@ -58,7 +73,7 @@ read_tty() {
   local is_secret="${3:-0}"
   local input_val=""
 
-  if [ -c /dev/tty ] && [ -z "${CAIDPS_NON_INTERACTIVE:-}" ] && [ -z "${CI:-}" ]; then
+  if [ "$HAS_TTY" -eq 1 ] && [ -z "${CAIDPS_NON_INTERACTIVE:-}" ] && [ -z "${CI:-}" ]; then
     if [ "$is_secret" -eq 1 ]; then
       read -r -s -p "$prompt_str" input_val < /dev/tty
       echo "" > /dev/tty 2>/dev/null || echo ""
@@ -129,7 +144,7 @@ ensure_whiptail() {
 }
 
 USE_TUI=0
-if { true < /dev/tty; } 2>/dev/null && [ -z "${CAIDPS_NON_INTERACTIVE:-}" ] && [ -z "${CI:-}" ]; then
+if [ "$HAS_TTY" -eq 1 ] && [ -z "${CAIDPS_NON_INTERACTIVE:-}" ] && [ -z "${CI:-}" ]; then
   if ensure_whiptail; then
     USE_TUI=1
   fi
@@ -294,9 +309,12 @@ configure_permissions() {
 
   # Git safe directory (prevents CVE-2022-24765 dubious ownership warnings across users)
   if command -v git >/dev/null 2>&1; then
-    git config --global --add safe.directory "$dir" 2>/dev/null || true
+    # Added once: --add appends a duplicate on every run otherwise.
+    if ! git config --global --get-all safe.directory 2>/dev/null | grep -qxF "$dir"; then
+      git config --global --add safe.directory "$dir" 2>/dev/null || true
+    fi
     if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER}" != "root" ]; then
-      su - "${ACTUAL_USER}" -c "git config --global --add safe.directory '${dir}'" 2>/dev/null || true
+      su - "${ACTUAL_USER}" -c "git config --global --get-all safe.directory 2>/dev/null | grep -qxF '${dir}' || git config --global --add safe.directory '${dir}'" 2>/dev/null || true
     fi
   fi
 
@@ -334,6 +352,21 @@ configure_permissions() {
   fi
 }
 
+# Authenticate git to GitHub for this run only: an Authorization header passed through git's
+# environment (GIT_CONFIG_*), so the token is never written to .git/config and never appears in
+# a process listing. git-lfs reads the same configuration.
+use_token() {
+  local basic
+  basic="$(printf 'x-access-token:%s' "$1" | base64 | tr -d '\n')"
+  export GIT_CONFIG_COUNT=1
+  export GIT_CONFIG_KEY_0="http.https://github.com/.extraheader"
+  export GIT_CONFIG_VALUE_0="Authorization: Basic ${basic}"
+}
+
+forget_token() {
+  unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
+}
+
 # Step 0: Ensure git and git-lfs are installed
 ensure_git || exit 1
 ensure_lfs || true
@@ -356,7 +389,7 @@ else
       else
         TARGET_DIR=$(whiptail --title "CAIDPS Installation" --backtitle "CAIDPS Installer" \
           --inputbox "Enter destination path for CAIDPS:" 10 70 "$RECOMMENDED_DIR" \
-          3>&1 1>&2 2>&3 < /dev/tty || echo "$RECOMMENDED_DIR")
+          3>&1 1>&2 2>&3 < /dev/tty) || { echo "Cancelled."; exit 1; }
       fi
     else
       echo ""
@@ -376,7 +409,7 @@ else
     if [ "$USE_TUI" -eq 1 ]; then
       TARGET_DIR=$(whiptail --title "CAIDPS Installation" --backtitle "CAIDPS Installer" \
         --inputbox "Choose installation location for CAIDPS:\n(Linux system standard: /opt/caidps)" 12 70 "$RECOMMENDED_DIR" \
-        3>&1 1>&2 2>&3 < /dev/tty || echo "$RECOMMENDED_DIR")
+        3>&1 1>&2 2>&3 < /dev/tty) || { echo "Cancelled."; exit 1; }
     else
       echo ""
       echo -e "${BOLD}Step 0: Installation Location${RESET}"
@@ -420,13 +453,27 @@ if [ -d "$TARGET_DIR" ] && [ ! -w "$TARGET_DIR" ]; then
 fi
 
 # Clone or pull repository
+if [ -z "$TARGET_DIR" ]; then
+  echo -e "${RED}[error] No installation path given.${RESET}" >&2
+  exit 1
+fi
+
 if [ -d "$TARGET_DIR" ] && [ -f "${TARGET_DIR}/scripts/serve.sh" ]; then
   echo -e "${GREEN}[git] Updating existing repository in ${TARGET_DIR}...${RESET}"
   cd "$TARGET_DIR" || exit 1
   if [ -d ".git" ]; then
-    git fetch origin "$REPO_BRANCH" 2>/dev/null || true
-    git checkout "$REPO_BRANCH" 2>/dev/null || true
-    git pull origin "$REPO_BRANCH" 2>/dev/null || true
+    if [ -n "${GITHUB_TOKEN:-}" ] || [ -n "${GH_TOKEN:-}" ]; then
+      use_token "${GITHUB_TOKEN:-${GH_TOKEN}}"
+    fi
+    git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*" 2>/dev/null || true
+    if GIT_TERMINAL_PROMPT=0 git fetch origin "$REPO_BRANCH" \
+        && git checkout "$REPO_BRANCH" \
+        && git merge --ff-only "origin/${REPO_BRANCH}"; then
+      echo -e "${GREEN}[git] Up to date with origin/${REPO_BRANCH}.${RESET}"
+    else
+      echo -e "${YELLOW}[git] Could not update ${TARGET_DIR} automatically (offline, no access, or local changes)." \
+              "Continuing with the code already there; update it later with: caidps update${RESET}" >&2
+    fi
     # Submodules are initialized on-demand by scripts/serve.sh
   fi
 else
@@ -437,10 +484,12 @@ else
 
   # Check 1: GITHUB_TOKEN or GH_TOKEN from environment
   if [ -n "${GITHUB_TOKEN:-}" ] || [ -n "${GH_TOKEN:-}" ]; then
-    auth_env_token="${GITHUB_TOKEN:-${GH_TOKEN}}"
     echo -e "${GREEN}[auth] Detected GITHUB_TOKEN in environment, cloning...${RESET}"
-    if git clone --depth 1 -b "$REPO_BRANCH" "https://${auth_env_token}@github.com/Jerit3787/IDPS-WebServer.git" "$TARGET_DIR" 2>/dev/null; then
+    use_token "${GITHUB_TOKEN:-${GH_TOKEN}}"
+    if GIT_TERMINAL_PROMPT=0 git clone --depth 1 -b "$REPO_BRANCH" "$REPO_URL" "$TARGET_DIR" 2>/dev/null; then
       CLONE_SUCCESS=1
+    else
+      forget_token
     fi
   fi
 
@@ -448,7 +497,7 @@ else
   if [ "$CLONE_SUCCESS" -eq 0 ] && command -v gh >/dev/null 2>&1; then
     if gh auth status >/dev/null 2>&1; then
       echo -e "${GREEN}[auth] Authenticated GitHub CLI detected. Cloning Jerit3787/IDPS-WebServer...${RESET}"
-      if [ -c /dev/tty ]; then
+      if [ "$HAS_TTY" -eq 1 ]; then
         if gh repo clone Jerit3787/IDPS-WebServer "$TARGET_DIR" -- --depth 1 -b "$REPO_BRANCH" < /dev/tty; then
           CLONE_SUCCESS=1
         fi
@@ -499,7 +548,7 @@ else
             fi
             echo ""
             echo -e "${CYAN}[auth] Launching GitHub CLI login wizard...${RESET}"
-            if [ -c /dev/tty ]; then
+            if [ "$HAS_TTY" -eq 1 ]; then
               gh auth login < /dev/tty > /dev/tty 2>&1 || true
             else
               gh auth login || true
@@ -507,7 +556,7 @@ else
           fi
           gh auth setup-git 2>/dev/null || true
           echo -e "${GREEN}[git] Cloning repository with GitHub CLI...${RESET}"
-          if [ -c /dev/tty ]; then
+          if [ "$HAS_TTY" -eq 1 ]; then
             if gh repo clone Jerit3787/IDPS-WebServer "$TARGET_DIR" -- --depth 1 -b "$REPO_BRANCH" < /dev/tty; then
               CLONE_SUCCESS=1
             fi
@@ -531,8 +580,11 @@ else
         fi
         if [ -n "$pat_token" ]; then
           echo -e "${GREEN}[git] Cloning repository using token...${RESET}"
-          if git clone --depth 1 -b "$REPO_BRANCH" "https://${pat_token}@github.com/Jerit3787/IDPS-WebServer.git" "$TARGET_DIR"; then
+          use_token "$pat_token"
+          if GIT_TERMINAL_PROMPT=0 git clone --depth 1 -b "$REPO_BRANCH" "$REPO_URL" "$TARGET_DIR"; then
             CLONE_SUCCESS=1
+          else
+            forget_token
           fi
         fi
         ;;
@@ -557,6 +609,9 @@ else
   cd "$TARGET_DIR" || exit 1
 fi
 
+# Ensure shallow clones can discover and switch between all remote branches on origin
+git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*" 2>/dev/null || true
+
 # Ensure git credentials are configured for LFS and submodules if gh is authenticated
 if command -v gh >/dev/null 2>&1; then
   gh auth setup-git 2>/dev/null || true
@@ -566,12 +621,14 @@ fi
 if command -v git-lfs >/dev/null 2>&1 || git lfs version >/dev/null 2>&1; then
   echo -e "${GREEN}[lfs] Checking Git LFS model weights...${RESET}"
   git lfs install --local 2>/dev/null || true
-  if [ -c /dev/tty ]; then
-    GIT_TERMINAL_PROMPT=0 git lfs pull < /dev/tty || true
-  else
-    GIT_TERMINAL_PROMPT=0 git lfs pull || true
+  if ! GIT_TERMINAL_PROMPT=0 git lfs pull; then
+    echo -e "${YELLOW}[lfs] Could not download the model weights (Git LFS). The DistilBERT tier stays off" \
+            "until you run: cd ${TARGET_DIR} && git lfs pull${RESET}" >&2
   fi
+else
+  echo -e "${YELLOW}[lfs] git-lfs is not installed: the DistilBERT model weights were not downloaded.${RESET}" >&2
 fi
+forget_token
 
 # Configure all permissions across the repository and docker group
 configure_permissions "$TARGET_DIR"
@@ -582,7 +639,7 @@ echo ""
 
 # Launch the interactive wizard inside the repository
 if [ -f "./scripts/setup.sh" ]; then
-  if [ -c /dev/tty ] && [ -t 1 ]; then
+  if [ "$HAS_TTY" -eq 1 ] && [ -t 1 ]; then
     exec ./scripts/setup.sh "$@" < /dev/tty
   else
     exec ./scripts/setup.sh "$@"
@@ -591,3 +648,6 @@ else
   echo -e "${RED}[error] ./scripts/setup.sh not found in $(pwd)${RESET}" >&2
   exit 1
 fi
+}
+
+main "$@"
