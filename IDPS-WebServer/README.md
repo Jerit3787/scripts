@@ -43,6 +43,34 @@ curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/setup.sh \
 The wrapper installs Python/venv, the app installs Docker and the Compose plugin, builds and starts the
 stack, installs the `caidps-hostd` updater and the nightly backup timer, and prints the one-time setup code.
 
+### Image-only install (no repository)
+
+For a production server that should not keep a git checkout, LFS weights, submodules or a backend venv:
+
+```bash
+curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/install-image.sh | \
+  CAIDPS_GHCR_TOKEN='<classic PAT with read:packages>' \
+  CAIDPS_GHCR_USER=Jerit3787 \
+  bash -s -- --non-interactive --profile production --run containers
+```
+
+The bootstrap pulls the released app image, extracts its host bundle (compose, tunnel/backup/CLI scripts
+and the host updater), merges it without touching `.env`, tunnel credentials, certificates or backups, and
+runs the image-only host setup. It never clones the repository, pulls LFS weights, checks out submodules,
+installs `node_modules` or builds an image.
+
+- `CAIDPS_GHCR_TOKEN` needs `read:packages`; it is passed to `docker login` through stdin. If `gh` is
+  authenticated, `CAIDPS_GHCR_USER` can be omitted.
+- `CAIDPS_VERSION` pins a fresh install (default `latest`); an existing image-only install refuses a
+  downgrade.
+- Tunnel settings use the same `CAIDPS_TUNNEL_MODE`/`CAIDPS_TUNNEL_TOKEN`/`CAIDPS_TUNNEL_NAME`/
+  `CAIDPS_TUNNEL_DASHBOARD_HOST`/`CAIDPS_TUNNEL_APP_HOST` environment as the container wizard. Token mode
+  is unattended; login mode needs a terminal and browser.
+- Re-run the same command to repair or upgrade the host tooling. It refuses a directory containing `.git`;
+  the repo-based installer remains the path for checkouts.
+- Dashboard **Updates** then pulls new app images and host bundles; **Evaluation** pulls the released
+  evaluation image. Neither builds on the host.
+
 Unattended runs use `sudo` for package and service steps. When there is no terminal, run as root or with
 passwordless sudo.
 

@@ -6,6 +6,7 @@ set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SETUP="$ROOT/setup.sh"
 RESET="$ROOT/reset.sh"
+INSTALL_IMAGE="$ROOT/install-image.sh"
 ORIG_PATH="$PATH"
 
 if [ ! -f /.dockerenv ] && [ ! -f /run/.containerenv ] && [ "${CAIDPS_TEST_ALLOW_HOST:-0}" != "1" ]; then
@@ -491,6 +492,130 @@ test_reset_login_tunnel() {
   assert_log_contains "CLOUDFLARED:tunnel delete -f my-login-tunnel" "reset login tunnel: deletes the login-managed named tunnel"
 }
 
+make_image_stubs() {
+  write_stub docker <<'DOCKER_STUB'
+#!/usr/bin/env bash
+printf 'DOCKER:%s\n' "$*" >> "$CAIDPS_TEST_LOG"
+case "${1:-}" in
+  login|pull|tag|create|rm) exit 0 ;;
+  image)
+    if [ "${2:-}" = "inspect" ]; then
+      case "$*" in
+        *org.opencontainers.image.version*) printf '%s\n' "${CAIDPS_TEST_IMAGE_VERSION:-2.3.0}" ;;
+        *Os*Architecture*) arch="$(uname -m)"; case "$arch" in x86_64|amd64) arch=amd64 ;; aarch64|arm64) arch=arm64 ;; esac; printf 'linux/%s\n' "$arch" ;;
+        *org.opencontainers.image.revision*) printf 'abc1234\n' ;;
+        *) printf 'unknown\n' ;;
+      esac
+    fi
+    exit 0
+    ;;
+  cp)
+    dest="${!#}"
+    mkdir -p "$dest/scripts"
+    printf '%s\n' "${CAIDPS_TEST_IMAGE_VERSION:-2.3.0}" > "$dest/VERSION"
+    cat > "$dest/scripts/host_bundle.sh" <<'HOST'
+#!/usr/bin/env bash
+printf 'HOST_BUNDLE:%s\n' "$*" >> "$CAIDPS_TEST_LOG"
+mkdir -p "$3/scripts"
+cp "$2/VERSION" "$3/VERSION"
+cp "$2/scripts/setup.sh" "$3/scripts/setup.sh"
+chmod +x "$3/scripts/setup.sh"
+HOST
+    cat > "$dest/scripts/setup.sh" <<'SETUP'
+#!/usr/bin/env bash
+printf 'SETUP_ARGS:%s\n' "$*" >> "$CAIDPS_TEST_LOG"
+printf 'SETUP_TUNNEL:%s\n' "${CAIDPS_TUNNEL_MODE:-}" >> "$CAIDPS_TEST_LOG"
+exit 0
+SETUP
+    chmod +x "$dest/scripts/"*.sh
+    exit 0
+    ;;
+  *) exit 0 ;;
+esac
+DOCKER_STUB
+}
+
+test_install_image_fresh() {
+  new_case install-image-fresh
+  make_stubs
+  make_image_stubs
+  CAIDPS_GHCR_TOKEN='ghp_secret' CAIDPS_GHCR_USER='Jerit3787' CAIDPS_VERSION='2.3.0' \
+    CAIDPS_INSTALL_DIR="$CASE_DIR/install" \
+    run_script "$INSTALL_IMAGE" --non-interactive --profile production --run containers
+  assert_rc 0 "image install: exits 0"
+  assert_log_contains "DOCKER:login ghcr.io -u Jerit3787 --password-stdin" "image install: logs in through stdin"
+  assert_log_contains "DOCKER:pull ghcr.io/jerit3787/caidps-app:2.3.0" "image install: pulls the requested version"
+  assert_log_contains "DOCKER:tag ghcr.io/jerit3787/caidps-app:2.3.0 caidps-app:latest" "image install: tags the local name"
+  assert_log_contains "HOST_BUNDLE:install" "image install: runs the extracted merge script"
+  assert_log_contains "SETUP_ARGS:--image-only --run containers" "image install: hands off in image-only mode"
+  assert_log_not_contains "git " "image install: never invokes git"
+  assert_log_not_contains "ghp_secret" "image install: never logs the token"
+  if [ "$(cat "$CASE_DIR/install/VERSION")" = "2.3.0" ]; then
+    ok "image install: writes the bundle version"
+  else
+    not_ok "image install: writes the bundle version"
+  fi
+}
+
+test_install_image_refuses_checkout() {
+  new_case install-image-checkout
+  make_stubs
+  make_image_stubs
+  mkdir -p "$CASE_DIR/install/.git"
+  CAIDPS_GHCR_TOKEN='ghp_secret' CAIDPS_GHCR_USER='Jerit3787' CAIDPS_INSTALL_DIR="$CASE_DIR/install" \
+    run_script "$INSTALL_IMAGE" --non-interactive --profile production --run containers
+  assert_rc 2 "image install checkout: exits 2"
+  assert_out_contains "repository checkout" "image install checkout: refuses a git checkout"
+  assert_log_not_contains "DOCKER:pull" "image install checkout: pulls nothing"
+}
+
+test_install_image_preserves_state() {
+  new_case install-image-preserve
+  make_stubs
+  make_image_stubs
+  mkdir -p "$CASE_DIR/install/deploy/cloudflared"
+  printf 'KEEP=1\n' > "$CASE_DIR/install/.env"
+  printf 'secret\n' > "$CASE_DIR/install/deploy/cloudflared/credentials.json"
+  printf '2.2.0\n' > "$CASE_DIR/install/VERSION"
+  CAIDPS_GHCR_TOKEN='ghp_secret' CAIDPS_GHCR_USER='Jerit3787' CAIDPS_VERSION='2.3.0' \
+    CAIDPS_INSTALL_DIR="$CASE_DIR/install" \
+    run_script "$INSTALL_IMAGE" --non-interactive --profile production --run containers
+  assert_rc 0 "image install preserve: exits 0"
+  if [ "$(cat "$CASE_DIR/install/.env")" = "KEEP=1" ] && \
+      [ "$(cat "$CASE_DIR/install/deploy/cloudflared/credentials.json")" = "secret" ] && \
+      [ "$(cat "$CASE_DIR/install/VERSION")" = "2.3.0" ]; then
+    ok "image install preserve: keeps state and updates VERSION"
+  else
+    not_ok "image install preserve: keeps state and updates VERSION"
+  fi
+  assert_log_contains "HOST_BUNDLE:install" "image install preserve: merges the bundle"
+}
+
+test_install_image_refuses_downgrade() {
+  new_case install-image-downgrade
+  make_stubs
+  make_image_stubs
+  mkdir -p "$CASE_DIR/install"
+  printf '2.4.0\n' > "$CASE_DIR/install/VERSION"
+  CAIDPS_GHCR_TOKEN='ghp_secret' CAIDPS_GHCR_USER='Jerit3787' CAIDPS_VERSION='2.3.0' \
+    CAIDPS_INSTALL_DIR="$CASE_DIR/install" \
+    run_script "$INSTALL_IMAGE" --non-interactive --profile production --run containers
+  assert_rc 2 "image install downgrade: exits 2"
+  assert_out_contains "older" "image install downgrade: refuses an older version"
+  assert_log_not_contains "HOST_BUNDLE:install" "image install downgrade: does not merge"
+}
+
+test_install_image_forwards_tunnel_env() {
+  new_case install-image-tunnel
+  make_stubs
+  make_image_stubs
+  CAIDPS_GHCR_TOKEN='ghp_secret' CAIDPS_GHCR_USER='Jerit3787' CAIDPS_VERSION='2.3.0' \
+    CAIDPS_INSTALL_DIR="$CASE_DIR/install" CAIDPS_TUNNEL_MODE='login' \
+    run_script "$INSTALL_IMAGE" --non-interactive --profile production --run containers
+  assert_rc 0 "image install tunnel: exits 0"
+  assert_log_contains "SETUP_TUNNEL:login" "image install tunnel: forwards the tunnel environment"
+}
+
 test_help
 test_install_all_rejected
 test_non_interactive_defaults
@@ -508,6 +633,11 @@ test_reset_named_tunnel
 test_reset_login_tunnel
 test_reset_leftover
 test_dry_run_keeps_cli
+test_install_image_fresh
+test_install_image_refuses_checkout
+test_install_image_preserves_state
+test_install_image_refuses_downgrade
+test_install_image_forwards_tunnel_env
 
 say ""
 say "passed: ${PASS}, failed: ${FAIL}"
