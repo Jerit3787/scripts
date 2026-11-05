@@ -39,6 +39,10 @@ Details, current options and environment variables: [`IDPS-WebServer/README.md`]
 ├── .nojekyll              # serve files as-is (no Jekyll)
 ├── favicon.svg            # catalog/project icon
 ├── index.html             # script catalog with copy buttons
+├── assets/
+│   ├── site.css           # shared Atlassian-style tokens and components (light/dark)
+│   ├── site.js            # theme toggle, tabs, copy-to-clipboard flags
+│   └── icons.svg          # SVG icon sprite
 └── IDPS-WebServer/
     ├── setup.sh           # CAIDPS installer and setup wizard
     ├── reset.sh           # CAIDPS teardown / factory reset

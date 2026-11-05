@@ -3,1307 +3,256 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Scripts — one-liners for self-hosted projects | danplace.tech</title>
-  <meta name="description" content="A growing collection of reviewed one-line installers, setup scripts and reset scripts for self-hosted projects.">
-  <meta name="theme-color" content="#070b12">
+  <title>Scripts catalog | danplace.tech</title>
+  <meta name="description" content="Reviewed one-line installers, setup scripts and reset scripts for self-hosted danplace.tech projects.">
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1D2125" media="(prefers-color-scheme: dark)">
   <meta property="og:title" content="Scripts | danplace.tech">
-  <meta property="og:description" content="A growing collection of reviewed one-line installers, setup scripts and reset scripts for self-hosted projects.">
+  <meta property="og:description" content="Reviewed one-line installers, setup scripts and reset scripts for self-hosted danplace.tech projects.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://scripts.danplace.tech/">
   <meta name="twitter:card" content="summary">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg: #070b12;
-      --bg-soft: #0b1220;
-      --card: rgba(15, 23, 42, 0.72);
-      --line: rgba(148, 163, 184, 0.14);
-      --line-strong: rgba(56, 189, 248, 0.34);
-      --accent: #38bdf8;
-      --accent-bright: #7dd3fc;
-      --accent-alt: #818cf8;
-      --success: #34d399;
-      --text: #f1f5f9;
-      --muted: #94a3b8;
-      --dim: #64748b;
-      --code-bg: #020617;
-      --mono: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, monospace;
-      --sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      --radius: 16px;
-      --shadow: 0 24px 60px -28px rgba(0, 0, 0, 0.85);
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    html {
-      scroll-behavior: smooth;
-    }
-
-    body {
-      background-color: var(--bg);
-      background-image:
-        radial-gradient(ellipse 72% 48% at 50% -12%, rgba(56, 189, 248, 0.15), transparent),
-        radial-gradient(ellipse 48% 38% at 88% 12%, rgba(129, 140, 248, 0.09), transparent),
-        linear-gradient(rgba(148, 163, 184, 0.035) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(148, 163, 184, 0.035) 1px, transparent 1px);
-      background-size: auto, auto, 48px 48px, 48px 48px;
-      color: var(--text);
-      font-family: var(--sans);
-      font-size: 16px;
-      line-height: 1.6;
-      min-height: 100vh;
-      overflow-x: hidden;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    a {
-      color: inherit;
-    }
-
-    button {
-      font: inherit;
-    }
-
-    ::selection {
-      background: rgba(56, 189, 248, 0.28);
-      color: #fff;
-    }
-
-    :focus-visible {
-      outline: 2px solid var(--accent);
-      outline-offset: 3px;
-      border-radius: 5px;
-    }
-
-    .skip-link {
-      position: absolute;
-      left: -9999px;
-      top: 12px;
-      z-index: 100;
-      padding: 10px 14px;
-      border-radius: 8px;
-      background: var(--accent);
-      color: #04111d;
-      font-weight: 700;
-      text-decoration: none;
-    }
-
-    .skip-link:focus {
-      left: 16px;
-    }
-
-    .container {
-      width: 100%;
-      max-width: 1120px;
-      margin: 0 auto;
-      padding: 0 24px;
-    }
-
-    /* Header */
-    .site-header {
-      position: relative;
-      z-index: 2;
-      border-bottom: 1px solid var(--line);
-    }
-
-    .header-inner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 24px;
-      padding: 24px 0;
-    }
-
-    .brand {
-      display: inline-flex;
-      align-items: center;
-      gap: 12px;
-      text-decoration: none;
-      color: var(--text);
-      min-width: 0;
-    }
-
-    .brand-mark {
-      display: grid;
-      place-items: center;
-      width: 38px;
-      height: 38px;
-      flex: 0 0 auto;
-      border-radius: 10px;
-      background: linear-gradient(135deg, #0284c7, #6366f1);
-      color: #fff;
-      font-family: var(--mono);
-      font-size: 0.82rem;
-      font-weight: 600;
-      letter-spacing: -0.04em;
-      box-shadow: 0 0 24px rgba(56, 189, 248, 0.28);
-    }
-
-    .brand-name {
-      font-weight: 700;
-      letter-spacing: -0.025em;
-      white-space: nowrap;
-    }
-
-    .brand-path {
-      color: var(--dim);
-      font-family: var(--mono);
-      font-size: 0.82rem;
-      font-weight: 400;
-    }
-
-    .nav {
-      display: flex;
-      align-items: center;
-      gap: 24px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
-
-    .nav a {
-      color: var(--muted);
-      font-size: 0.88rem;
-      font-weight: 500;
-      text-decoration: none;
-      transition: color 0.2s ease;
-    }
-
-    .nav a:hover {
-      color: var(--text);
-    }
-
-    .nav .nav-external {
-      color: var(--accent);
-    }
-
-    /* Hero */
-    .hero {
-      display: grid;
-      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-      gap: 64px;
-      align-items: center;
-      padding: 82px 0 44px;
-    }
-
-    .eyebrow {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 20px;
-      color: var(--dim);
-      font-family: var(--mono);
-      font-size: 0.76rem;
-      letter-spacing: 0.02em;
-    }
-
-    .eyebrow .prompt {
-      color: var(--success);
-    }
-
-    .eyebrow .caret {
-      color: var(--accent);
-    }
-
-    h1 {
-      max-width: 700px;
-      font-size: clamp(2.5rem, 5vw, 4rem);
-      font-weight: 800;
-      letter-spacing: -0.045em;
-      line-height: 1.04;
-      background: linear-gradient(118deg, #ffffff 8%, #dbeafe 48%, #7dd3fc 100%);
-      -webkit-background-clip: text;
-      background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .lede {
-      max-width: 560px;
-      margin: 22px 0 30px;
-      color: var(--muted);
-      font-size: clamp(1.02rem, 1.6vw, 1.14rem);
-      line-height: 1.7;
-    }
-
-    .hero-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      min-height: 44px;
-      padding: 10px 18px;
-      border-radius: 9px;
-      border: 1px solid transparent;
-      font-size: 0.9rem;
-      font-weight: 600;
-      text-decoration: none;
-      cursor: pointer;
-      transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .btn:hover {
-      transform: translateY(-1px);
-    }
-
-    .btn-primary {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #04111d;
-      box-shadow: 0 0 30px -8px rgba(56, 189, 248, 0.55);
-    }
-
-    .btn-primary:hover {
-      background: var(--accent-bright);
-      border-color: var(--accent-bright);
-    }
-
-    .btn-secondary {
-      background: rgba(15, 23, 42, 0.55);
-      border-color: var(--line);
-      color: var(--text);
-    }
-
-    .btn-secondary:hover {
-      border-color: var(--line-strong);
-      color: var(--accent-bright);
-    }
-
-    .btn-ghost {
-      background: transparent;
-      border-color: var(--line);
-      color: var(--muted);
-    }
-
-    .btn-ghost:hover {
-      border-color: var(--line-strong);
-      color: var(--text);
-    }
-
-    .trust {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-top: 22px;
-      color: var(--dim);
-      font-family: var(--mono);
-      font-size: 0.72rem;
-    }
-
-    .status-dot {
-      width: 7px;
-      height: 7px;
-      flex: 0 0 auto;
-      border-radius: 50%;
-      background: var(--success);
-      box-shadow: 0 0 10px rgba(52, 211, 153, 0.6);
-    }
-
-    /* Terminal */
-    .terminal {
-      position: relative;
-      overflow: hidden;
-      background: var(--code-bg);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      box-shadow: var(--shadow), 0 0 50px -24px rgba(56, 189, 248, 0.5);
-    }
-
-    .terminal::before {
-      content: "";
-      position: absolute;
-      inset: -1px;
-      background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), transparent 42%, rgba(129, 140, 248, 0.08));
-      pointer-events: none;
-    }
-
-    .terminal-bar {
-      position: relative;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--line);
-      background: rgba(15, 23, 42, 0.68);
-    }
-
-    .dots {
-      display: flex;
-      gap: 7px;
-    }
-
-    .dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-    }
-
-    .dot-red { background: #ef4444; }
-    .dot-yellow { background: #f59e0b; }
-    .dot-green { background: #10b981; }
-
-    .terminal-title {
-      margin-left: 6px;
-      color: var(--dim);
-      font-family: var(--mono);
-      font-size: 0.7rem;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .terminal-body {
-      position: relative;
-      padding: 24px;
-    }
-
-    .terminal-label {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-      margin-bottom: 18px;
-      color: var(--accent);
-      font-family: var(--mono);
-      font-size: 0.68rem;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      padding: 4px 8px;
-      border: 1px solid rgba(56, 189, 248, 0.34);
-      border-radius: 5px;
-      background: rgba(56, 189, 248, 0.1);
-      color: var(--accent);
-      font-size: 0.62rem;
-      letter-spacing: 0.1em;
-    }
-
-    .terminal-comment {
-      margin-bottom: 10px;
-      color: var(--dim);
-      font-family: var(--mono);
-      font-size: 0.76rem;
-    }
-
-    .terminal-command {
-      display: flex;
-      gap: 10px;
-      color: #e2e8f0;
-      font-family: var(--mono);
-      font-size: 0.84rem;
-      line-height: 1.7;
-      overflow-wrap: anywhere;
-    }
-
-    .terminal-command .prompt {
-      color: var(--success);
-      user-select: none;
-    }
-
-    .terminal-actions {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-      margin-top: 22px;
-      padding-top: 16px;
-      border-top: 1px dashed var(--line);
-    }
-
-    .terminal-hint {
-      color: var(--dim);
-      font-family: var(--mono);
-      font-size: 0.68rem;
-    }
-
-    .copy-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      padding: 7px 12px;
-      border: 1px solid rgba(56, 189, 248, 0.3);
-      border-radius: 7px;
-      background: rgba(56, 189, 248, 0.12);
-      color: var(--accent);
-      font-size: 0.76rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-    }
-
-    .copy-btn:hover {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #04111d;
-    }
-
-    .copy-btn.copied {
-      background: var(--success);
-      border-color: var(--success);
-      color: #04111d;
-    }
-
-    .terminal-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      margin-top: 20px;
-      color: var(--muted);
-      font-size: 0.78rem;
-      text-decoration: none;
-    }
-
-    .terminal-link:hover {
-      color: var(--accent);
-    }
-
-    /* Stats */
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      border-top: 1px solid var(--line);
-      border-bottom: 1px solid var(--line);
-    }
-
-    .stat {
-      display: flex;
-      align-items: baseline;
-      gap: 10px;
-      padding: 18px 24px;
-      border-left: 1px solid var(--line);
-    }
-
-    .stat:first-child {
-      border-left: 0;
-      padding-left: 0;
-    }
-
-    .stat strong {
-      color: var(--accent);
-      font-family: var(--mono);
-      font-size: 1.35rem;
-      font-weight: 600;
-      letter-spacing: -0.04em;
-    }
-
-    .stat span {
-      color: var(--muted);
-      font-size: 0.8rem;
-    }
-
-    /* Sections */
-    .section {
-      padding: 74px 0;
-      border-bottom: 1px solid var(--line);
-    }
-
-    .section-head {
-      display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      gap: 24px;
-      margin-bottom: 28px;
-    }
-
-    .section-eyebrow {
-      margin-bottom: 10px;
-      color: var(--dim);
-      font-family: var(--mono);
-      font-size: 0.72rem;
-    }
-
-    .section-eyebrow .prompt {
-      color: var(--success);
-    }
-
-    h2 {
-      font-size: clamp(1.55rem, 2.8vw, 2.1rem);
-      font-weight: 700;
-      letter-spacing: -0.035em;
-      line-height: 1.15;
-    }
-
-    .section-lede {
-      max-width: 620px;
-      margin-top: 12px;
-      color: var(--muted);
-      font-size: 0.95rem;
-    }
-
-    .count-chip {
-      flex: 0 0 auto;
-      padding: 6px 10px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      color: var(--muted);
-      font-family: var(--mono);
-      font-size: 0.68rem;
-      white-space: nowrap;
-    }
-
-    /* Featured project */
-    .project-card {
-      position: relative;
-      display: grid;
-      grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
-      overflow: hidden;
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(12px);
-    }
-
-    .project-card::before {
-      content: "";
-      position: absolute;
-      inset: 0 0 auto;
-      height: 2px;
-      background: linear-gradient(90deg, var(--accent), var(--accent-alt), transparent 78%);
-    }
-
-    .project-main {
-      padding: 34px;
-    }
-
-    .badges {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 18px;
-    }
-
-    .badge {
-      display: inline-flex;
-      padding: 4px 8px;
-      border: 1px solid var(--line);
-      border-radius: 5px;
-      color: var(--muted);
-      font-family: var(--mono);
-      font-size: 0.62rem;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-    }
-
-    .badge-featured {
-      border-color: rgba(56, 189, 248, 0.34);
-      background: rgba(56, 189, 248, 0.1);
-      color: var(--accent);
-    }
-
-    .project-main h3 {
-      font-size: 2rem;
-      font-weight: 800;
-      letter-spacing: -0.04em;
-      line-height: 1.1;
-    }
-
-    .project-main h3 a {
-      color: var(--text);
-      text-decoration: none;
-    }
-
-    .project-main h3 a:hover {
-      color: var(--accent);
-    }
-
-    .project-subtitle {
-      margin: 5px 0 18px;
-      color: var(--dim);
-      font-family: var(--mono);
-      font-size: 0.74rem;
-    }
-
-    .project-desc {
-      max-width: 57ch;
-      color: var(--muted);
-      font-size: 0.93rem;
-      line-height: 1.68;
-    }
-
-    .tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin: 22px 0 26px;
-    }
-
-    .tag {
-      padding: 5px 9px;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      background: rgba(148, 163, 184, 0.04);
-      color: var(--muted);
-      font-family: var(--mono);
-      font-size: 0.68rem;
-    }
-
-    .project-links {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 18px;
-      font-size: 0.84rem;
-    }
-
-    .text-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: var(--accent);
-      font-weight: 600;
-      text-decoration: none;
-    }
-
-    .text-link:hover {
-      color: var(--accent-bright);
-    }
-
-    .text-link.muted {
-      color: var(--muted);
-      font-weight: 500;
-    }
-
-    .text-link.muted:hover {
-      color: var(--text);
-    }
-
-    .install-panel {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      gap: 16px;
-      padding: 28px;
-      border-left: 1px solid var(--line);
-      background: var(--code-bg);
-    }
-
-    .panel-label {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: var(--dim);
-      font-family: var(--mono);
-      font-size: 0.68rem;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-    }
-
-    .panel-command {
-      color: #e2e8f0;
-      font-family: var(--mono);
-      font-size: 0.8rem;
-      line-height: 1.7;
-      overflow-wrap: anywhere;
-    }
-
-    .panel-command .prompt {
-      color: var(--success);
-      user-select: none;
-    }
-
-    .panel-actions {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-
-    .panel-note {
-      color: var(--dim);
-      font-size: 0.78rem;
-      line-height: 1.6;
-    }
-
-    .panel-note a {
-      color: var(--accent);
-      text-decoration: none;
-    }
-
-    .panel-note a:hover {
-      text-decoration: underline;
-    }
-
-    .panel-files {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 7px;
-      margin-top: 2px;
-    }
-
-    .panel-files span {
-      padding: 4px 7px;
-      border: 1px solid var(--line);
-      border-radius: 5px;
-      color: var(--dim);
-      font-family: var(--mono);
-      font-size: 0.64rem;
-    }
-
-    .catalog-note {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      margin-top: 18px;
-      padding: 15px 18px;
-      border: 1px dashed var(--line);
-      border-radius: 12px;
-      color: var(--dim);
-      font-size: 0.8rem;
-    }
-
-    .catalog-note a {
-      color: var(--muted);
-      text-decoration: none;
-      white-space: nowrap;
-    }
-
-    .catalog-note a:hover {
-      color: var(--accent);
-    }
-
-    /* Steps */
-    .steps {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 16px;
-    }
-
-    .step {
-      padding: 24px;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: rgba(15, 23, 42, 0.42);
-      transition: border-color 0.2s ease, transform 0.2s ease;
-    }
-
-    .step:hover {
-      transform: translateY(-2px);
-      border-color: rgba(56, 189, 248, 0.25);
-    }
-
-    .step-number {
-      margin-bottom: 14px;
-      color: var(--accent);
-      font-family: var(--mono);
-      font-size: 0.72rem;
-    }
-
-    .step h3 {
-      margin-bottom: 8px;
-      font-size: 1rem;
-      font-weight: 600;
-      letter-spacing: -0.01em;
-    }
-
-    .step p {
-      color: var(--muted);
-      font-size: 0.86rem;
-      line-height: 1.65;
-    }
-
-    .step code {
-      color: var(--accent-bright);
-      font-family: var(--mono);
-      font-size: 0.82em;
-    }
-
-    /* Add project */
-    .add-panel {
-      display: grid;
-      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-      gap: 34px;
-      align-items: center;
-      padding: 34px;
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      background:
-        radial-gradient(ellipse 80% 130% at 0% 0%, rgba(56, 189, 248, 0.09), transparent 58%),
-        rgba(15, 23, 42, 0.42);
-    }
-
-    .add-panel h2 {
-      margin: 10px 0 12px;
-    }
-
-    .add-panel p {
-      max-width: 56ch;
-      color: var(--muted);
-      font-size: 0.9rem;
-    }
-
-    .add-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 22px;
-    }
-
-    .tree {
-      overflow-x: auto;
-      margin: 0;
-      padding: 20px;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      background: var(--code-bg);
-      color: var(--muted);
-      font-family: var(--mono);
-      font-size: 0.74rem;
-      line-height: 1.85;
-    }
-
-    .tree .accent { color: var(--accent); }
-    .tree .dim { color: var(--dim); }
-
-    /* Footer */
-    .site-footer {
-      padding: 38px 0 44px;
-      color: var(--dim);
-      font-size: 0.8rem;
-    }
-
-    .footer-inner {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 24px;
-      flex-wrap: wrap;
-    }
-
-    .footer-brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      color: var(--muted);
-      font-family: var(--mono);
-      font-size: 0.76rem;
-    }
-
-    .footer-brand .brand-mark {
-      width: 28px;
-      height: 28px;
-      border-radius: 7px;
-      font-size: 0.68rem;
-    }
-
-    .footer-links {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 18px;
-    }
-
-    .footer-links a {
-      color: var(--muted);
-      text-decoration: none;
-    }
-
-    .footer-links a:hover {
-      color: var(--accent);
-    }
-
-    .footer-note {
-      width: 100%;
-      margin-top: 18px;
-      color: var(--dim);
-      font-size: 0.74rem;
-    }
-
-    /* Responsive */
-    @media (max-width: 960px) {
-      .hero {
-        grid-template-columns: 1fr;
-        gap: 42px;
-        padding-top: 60px;
-      }
-
-      .terminal {
-        max-width: 720px;
-      }
-
-      .project-card {
-        grid-template-columns: 1fr;
-      }
-
-      .install-panel {
-        border-top: 1px solid var(--line);
-        border-left: 0;
-      }
-
-      .steps {
-        grid-template-columns: 1fr;
-      }
-
-      .add-panel {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 720px) {
-      .header-inner {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 16px;
-        padding: 20px 0;
-      }
-
-      .nav {
-        justify-content: flex-start;
-        gap: 16px;
-      }
-
-      .hero {
-        padding-top: 48px;
-      }
-
-      .stats {
-        grid-template-columns: 1fr;
-      }
-
-      .stat {
-        border-left: 0;
-        border-top: 1px solid var(--line);
-        padding-left: 0;
-      }
-
-      .stat:first-child {
-        border-top: 0;
-      }
-
-      .section {
-        padding: 56px 0;
-      }
-
-      .section-head {
-        align-items: flex-start;
-        flex-direction: column;
-        gap: 12px;
-      }
-
-      .project-main,
-      .install-panel {
-        padding: 24px;
-      }
-
-      .catalog-note {
-        align-items: flex-start;
-        flex-direction: column;
-      }
-    }
-
-    @media (max-width: 520px) {
-      .container {
-        padding: 0 18px;
-      }
-
-      .brand-name {
-        white-space: normal;
-      }
-
-      h1 {
-        font-size: clamp(2.1rem, 11vw, 2.7rem);
-      }
-
-      .hero-actions .btn {
-        width: 100%;
-      }
-
-      .terminal-body {
-        padding: 20px;
-      }
-
-      .terminal-actions {
-        align-items: flex-start;
-        flex-direction: column;
-      }
-
-      .footer-inner {
-        flex-direction: column;
-      }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      html {
-        scroll-behavior: auto;
-      }
-
-      *,
-      *::before,
-      *::after {
-        transition-duration: 0.01ms !important;
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-      }
-    }
-  </style>
+  <script>
+    try {
+      var t = localStorage.getItem('ds-theme');
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
 
-  <header class="site-header">
-    <div class="container header-inner">
-      <a class="brand" href="/" aria-label="danplace.tech scripts home">
-        <span class="brand-mark" aria-hidden="true">&gt;_</span>
-        <span class="brand-name">danplace.tech <span class="brand-path">/ scripts</span></span>
+  <header class="topnav">
+    <div class="topnav-inner">
+      <a class="product" href="./" aria-label="Scripts catalog home">
+        <span class="product-logo" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#i-terminal"/></svg></span>
+        <span>Scripts <span class="product-site">danplace.tech</span></span>
       </a>
-      <nav class="nav" aria-label="Primary">
-        <a href="#catalog">Catalog</a>
-        <a href="#how">How it works</a>
-        <a class="nav-external" href="https://github.com/Jerit3787/scripts" target="_blank" rel="noopener">GitHub ↗</a>
-        <a href="https://danplace.tech" target="_blank" rel="noopener">danplace.tech</a>
+      <nav aria-label="Primary">
+        <ul class="nav-items">
+          <li><a class="nav-item" href="./" aria-current="page">Catalog</a></li>
+          <li><a class="nav-item" href="IDPS-WebServer/">CAIDPS</a></li>
+        </ul>
       </nav>
+      <div class="topnav-end">
+        <a class="btn btn-subtle hide-small" href="https://danplace.tech" target="_blank" rel="noopener">danplace.tech</a>
+        <a class="btn btn-subtle btn-icon" href="https://github.com/Jerit3787/scripts" target="_blank" rel="noopener" aria-label="Scripts repository on GitHub" title="Scripts repository on GitHub">
+          <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-github"/></svg>
+        </a>
+        <button class="btn btn-subtle btn-icon theme-toggle" type="button" data-theme-toggle aria-label="Switch theme">
+          <svg class="icon icon-moon" aria-hidden="true"><use href="assets/icons.svg#i-moon"/></svg>
+          <svg class="icon icon-sun" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>
+        </button>
+      </div>
     </div>
   </header>
 
-  <main id="main">
-    <section class="container hero">
-      <div class="hero-copy">
-        <p class="eyebrow"><span class="prompt">~/scripts</span> <span class="caret">$</span> <span>ls</span></p>
-        <h1>One-liners for software worth running.</h1>
-        <p class="lede">
-          A growing collection of reviewed installers, setup scripts and reset scripts for self-hosted
-          projects. Pick a project, read the source, run one command.
+  <main id="main" class="page">
+    <nav class="breadcrumbs" aria-label="Breadcrumb">
+      <ol>
+        <li><a href="https://danplace.tech" target="_blank" rel="noopener">danplace.tech</a></li>
+        <li><span aria-current="page">Scripts</span></li>
+      </ol>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-header-main">
+        <h1 class="page-title">Scripts</h1>
+        <p class="page-description">
+          One-line installers, setup wizards and reset scripts for self-hosted projects.
+          Pick a project, read its script, then run one command.
         </p>
-        <div class="hero-actions">
-          <a class="btn btn-primary" href="#catalog">Browse the catalog <span aria-hidden="true">↓</span></a>
-          <a class="btn btn-secondary" href="https://github.com/Jerit3787/scripts" target="_blank" rel="noopener">View on GitHub ↗</a>
-        </div>
-        <p class="trust"><span class="status-dot" aria-hidden="true"></span> Plain bash · no build step · source available</p>
       </div>
-
-      <aside class="terminal" aria-label="Featured install command">
-        <div class="terminal-bar">
-          <span class="dots" aria-hidden="true"><span class="dot dot-red"></span><span class="dot dot-yellow"></span><span class="dot dot-green"></span></span>
-          <span class="terminal-title">~/scripts/IDPS-WebServer</span>
-        </div>
-        <div class="terminal-body">
-          <div class="terminal-label"><span class="pill">Featured</span> CAIDPS</div>
-          <div class="terminal-comment"># install or update CAIDPS</div>
-          <div class="terminal-command">
-            <span class="prompt" aria-hidden="true">$</span>
-            <code>curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/setup.sh | bash</code>
-          </div>
-          <div class="terminal-actions">
-            <button class="copy-btn" type="button" data-copy="curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/setup.sh | bash">
-              <span class="copy-label">Copy</span>
-            </button>
-            <span class="terminal-hint">interactive setup</span>
-          </div>
-          <a class="terminal-link" href="IDPS-WebServer/README.md#image-only-install-no-repository">Image-only install (no repository) <span aria-hidden="true">→</span></a>
-          <a class="terminal-link" href="IDPS-WebServer/">Open the CAIDPS project page <span aria-hidden="true">→</span></a>
-        </div>
-      </aside>
-    </section>
-
-    <div class="container">
-      <div class="stats" aria-label="Catalog statistics">
-        <div class="stat"><strong>01</strong><span>project</span></div>
-        <div class="stat"><strong>02</strong><span>scripts</span></div>
-        <div class="stat"><strong>100%</strong><span>plain bash</span></div>
+      <div class="btn-group">
+        <a class="btn" href="https://github.com/Jerit3787/scripts/issues" target="_blank" rel="noopener">Suggest a project</a>
+        <a class="btn btn-primary" href="https://github.com/Jerit3787/scripts" target="_blank" rel="noopener">
+          <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-github"/></svg>
+          View on GitHub
+        </a>
       </div>
     </div>
 
-    <section class="section" id="catalog">
-      <div class="container">
-        <div class="section-head">
-          <div>
-            <p class="section-eyebrow"><span class="prompt">~/scripts</span> $ catalog</p>
-            <h2>Available scripts</h2>
-            <p class="section-lede">Each project keeps one copy of its scripts in its own folder and gets a card here.</p>
-          </div>
-          <span class="count-chip">1 project</span>
-        </div>
-
-        <article class="project-card" aria-labelledby="caidps-title">
-          <div class="project-main">
-            <div class="badges">
-              <span class="badge badge-featured">Featured</span>
-              <span class="badge">Security</span>
-            </div>
-            <h3 id="caidps-title"><a href="IDPS-WebServer/">CAIDPS</a></h3>
-            <p class="project-subtitle">Context-Aware Intrusion Detection &amp; Prevention System</p>
-            <p class="project-desc">
-              A self-hosted SOC dashboard and inline reverse proxy that detects and blocks web attacks.
-              Rule engine + DistilBERT detection, behavioral profiling and a production Docker Compose stack.
-            </p>
-            <div class="tags" aria-label="Technologies">
-              <span class="tag">Docker Compose</span>
-              <span class="tag">systemd</span>
-              <span class="tag">PostgreSQL</span>
-              <span class="tag">Cloudflare</span>
-              <span class="tag">Python</span>
-            </div>
-            <div class="project-links">
-              <a class="text-link" href="IDPS-WebServer/">Project page <span aria-hidden="true">→</span></a>
-              <a class="text-link muted" href="https://github.com/Jerit3787/IDPS-WebServer" target="_blank" rel="noopener">Source ↗</a>
-              <a class="text-link muted" href="https://github.com/Jerit3787/scripts/blob/main/IDPS-WebServer/README.md" target="_blank" rel="noopener">Docs ↗</a>
+    <div class="layout">
+      <div class="stack">
+        <section class="section-message" aria-labelledby="read-first-title">
+          <svg class="icon-24" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg>
+          <div class="section-message-body">
+            <h2 id="read-first-title" class="heading-small">Read a script before you pipe it to bash</h2>
+            <p>Every installer here is plain bash served straight from the repository, with no build step. Open the file, check what it changes, then run it.</p>
+            <div class="section-message-actions">
+              <a href="IDPS-WebServer/setup.sh">Open setup.sh</a>
+              <a href="https://github.com/Jerit3787/scripts" target="_blank" rel="noopener">Browse the source</a>
             </div>
           </div>
+        </section>
 
-          <div class="install-panel">
-            <div class="panel-label"><span class="status-dot" aria-hidden="true"></span> setup.sh · interactive</div>
-            <div class="panel-command"><span class="prompt" aria-hidden="true">$</span> curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/setup.sh | bash</div>
-            <div class="panel-actions">
-              <button class="copy-btn" type="button" data-copy="curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/setup.sh | bash">
-                <span class="copy-label">Copy</span>
-              </button>
-              <a class="text-link" href="IDPS-WebServer/">Options <span aria-hidden="true">→</span></a>
+        <section class="stack-tight" id="catalog" aria-labelledby="catalog-title">
+          <h2 id="catalog-title" class="section-heading">Projects <span class="badge" aria-label="1 project">1</span></h2>
+
+          <article class="card" aria-labelledby="caidps-title">
+            <div class="card-body">
+              <div class="project-head">
+                <span class="avatar" aria-hidden="true"><svg class="icon-24"><use href="assets/icons.svg#i-shield"/></svg></span>
+                <div class="project-head-text">
+                  <h3 id="caidps-title" class="project-title">
+                    <a href="IDPS-WebServer/">CAIDPS</a>
+                    <span class="lozenges">
+                      <span class="lozenge lozenge-new">Featured</span>
+                      <span class="lozenge">Security</span>
+                    </span>
+                  </h3>
+                  <p class="project-subtitle">Context-Aware Intrusion Detection &amp; Prevention System</p>
+                </div>
+              </div>
+
+              <p class="project-desc">
+                A self-hosted SOC dashboard and inline reverse proxy that detects and blocks web attacks, using a
+                rule engine, DistilBERT detection and behavioral profiling, deployed as a Docker Compose stack.
+              </p>
+
+              <ul class="tags" aria-label="Technologies">
+                <li class="tag">Docker Compose</li>
+                <li class="tag">systemd</li>
+                <li class="tag">PostgreSQL</li>
+                <li class="tag">Cloudflare</li>
+                <li class="tag">Python</li>
+              </ul>
+
+              <div class="tabs" data-tabs>
+                <div class="tab-list" role="tablist" aria-label="CAIDPS commands">
+                  <button class="tab" type="button" role="tab" id="tab-interactive" aria-controls="panel-interactive" aria-selected="true">Interactive</button>
+                  <button class="tab" type="button" role="tab" id="tab-unattended" aria-controls="panel-unattended" aria-selected="false" tabindex="-1">Unattended</button>
+                  <button class="tab" type="button" role="tab" id="tab-reset" aria-controls="panel-reset" aria-selected="false" tabindex="-1">Reset</button>
+                </div>
+
+                <div class="tab-panel" role="tabpanel" id="panel-interactive" aria-labelledby="tab-interactive">
+                  <div class="code-block">
+                    <pre><span class="prompt" aria-hidden="true">$</span><code id="cmd-interactive">curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/setup.sh | bash</code></pre>
+                    <button class="btn" type="button" data-copy-target="cmd-interactive" aria-label="Copy interactive install command">
+                      <svg class="icon icon-copy" aria-hidden="true"><use href="assets/icons.svg#i-copy"/></svg>
+                      <svg class="icon icon-check" aria-hidden="true"><use href="assets/icons.svg#i-check"/></svg>
+                      <span class="copy-label">Copy</span>
+                    </button>
+                  </div>
+                  <p>Installs or updates CAIDPS, then walks you through the setup wizard.</p>
+                </div>
+
+                <div class="tab-panel" role="tabpanel" id="panel-unattended" aria-labelledby="tab-unattended" hidden>
+                  <div class="code-block">
+                    <pre><span class="prompt" aria-hidden="true">$</span><code id="cmd-unattended">curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/setup.sh | CAIDPS_NON_INTERACTIVE=1 bash</code></pre>
+                    <button class="btn" type="button" data-copy-target="cmd-unattended" aria-label="Copy unattended install command">
+                      <svg class="icon icon-copy" aria-hidden="true"><use href="assets/icons.svg#i-copy"/></svg>
+                      <svg class="icon icon-check" aria-hidden="true"><use href="assets/icons.svg#i-check"/></svg>
+                      <span class="copy-label">Copy</span>
+                    </button>
+                  </div>
+                  <p>Production install with the Docker Compose stack and no prompts. For an install without a git checkout, use the <a href="IDPS-WebServer/#install">image-only command</a>.</p>
+                </div>
+
+                <div class="tab-panel" role="tabpanel" id="panel-reset" aria-labelledby="tab-reset" hidden>
+                  <div class="code-block">
+                    <pre><span class="prompt" aria-hidden="true">$</span><code id="cmd-reset">curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/reset.sh | bash</code></pre>
+                    <button class="btn" type="button" data-copy-target="cmd-reset" aria-label="Copy reset command">
+                      <svg class="icon icon-copy" aria-hidden="true"><use href="assets/icons.svg#i-copy"/></svg>
+                      <svg class="icon icon-check" aria-hidden="true"><use href="assets/icons.svg#i-check"/></svg>
+                      <span class="copy-label">Copy</span>
+                    </button>
+                  </div>
+                  <p>Deletes local CAIDPS data, database and volumes after you type <code>reset</code>. Back up first with <code>scripts/backup.sh create</code>.</p>
+                </div>
+              </div>
             </div>
-            <p class="panel-note">
-              Interactive by default. Production, systemd, Cloudflare Tunnel and reset commands are on the
-              <a href="IDPS-WebServer/">project page</a>.
-            </p>
-            <div class="panel-files" aria-label="Files in this project">
-              <span>setup.sh</span>
-              <span>reset.sh</span>
-              <span>README.md</span>
+
+            <div class="card-footer">
+              <div class="btn-group">
+                <a class="btn btn-primary" href="IDPS-WebServer/">Open project page</a>
+                <a class="btn btn-subtle" href="https://github.com/Jerit3787/IDPS-WebServer" target="_blank" rel="noopener">
+                  Source <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-external"/></svg>
+                </a>
+                <a class="btn btn-subtle" href="https://github.com/Jerit3787/scripts/blob/main/IDPS-WebServer/README.md" target="_blank" rel="noopener">
+                  Docs <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-external"/></svg>
+                </a>
+              </div>
+              <ul class="file-chips" aria-label="Scripts in this project">
+                <li><a href="IDPS-WebServer/setup.sh">setup.sh</a></li>
+                <li><a href="IDPS-WebServer/install-image.sh">install-image.sh</a></li>
+                <li><a href="IDPS-WebServer/reset.sh">reset.sh</a></li>
+              </ul>
+            </div>
+          </article>
+
+          <div class="empty-state">
+            <span class="empty-state-art" aria-hidden="true"><svg class="icon-24"><use href="assets/icons.svg#i-folder-plus"/></svg></span>
+            <div>
+              <h3 class="heading-small">Add the next project</h3>
+              <p>Give it a folder, keep one copy of each script there, and add a card to this page. The site stays static, so links never move.</p>
+              <div class="btn-group">
+                <a class="btn" href="https://github.com/Jerit3787/scripts#adding-a-project" target="_blank" rel="noopener">Read the folder convention</a>
+                <a class="btn btn-subtle" href="https://github.com/Jerit3787/scripts/issues" target="_blank" rel="noopener">Suggest a project</a>
+              </div>
             </div>
           </div>
-        </article>
-
-        <div class="catalog-note">
-          <span>Only one project so far. New scripts get their own folder and a card in this catalog.</span>
-          <a href="https://github.com/Jerit3787/scripts#adding-a-project" target="_blank" rel="noopener">Folder convention ↗</a>
-        </div>
+        </section>
       </div>
-    </section>
 
-    <section class="section" id="how">
-      <div class="container">
-        <div class="section-head">
-          <div>
-            <p class="section-eyebrow"><span class="prompt">~/scripts</span> $ how</p>
-            <h2>How the collection works</h2>
-            <p class="section-lede">Small rules keep the catalog predictable, reviewable and easy to extend.</p>
-          </div>
-        </div>
+      <aside id="how" aria-labelledby="how-title">
+        <section class="panel">
+          <h2 id="how-title" class="panel-title">How the catalog works</h2>
+          <ul class="rule-list">
+            <li>
+              <span class="icon-tile tile-blue" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#i-folder"/></svg></span>
+              <div>
+                <h3 class="heading-xsmall">One folder per project</h3>
+                <p>Scripts, README and an optional detail page live under <code>&lt;project&gt;/</code>. Nothing is aliased at the root.</p>
+              </div>
+            </li>
+            <li>
+              <span class="icon-tile tile-purple" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#i-file-code"/></svg></span>
+              <div>
+                <h3 class="heading-xsmall">One copy of each script</h3>
+                <p>Commands point at the file in the project folder, so there's no second copy to drift out of date.</p>
+              </div>
+            </li>
+            <li>
+              <span class="icon-tile tile-green" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#i-eye"/></svg></span>
+              <div>
+                <h3 class="heading-xsmall">Readable before you run</h3>
+                <p>Every script is plain bash, linted with <code>shellcheck</code> before it ships.</p>
+              </div>
+            </li>
+          </ul>
+        </section>
 
-        <div class="steps">
-          <article class="step">
-            <div class="step-number">01</div>
-            <h3>One folder per project</h3>
-            <p>Every project lives under <code>&lt;project&gt;/</code> with its own scripts, README and optional detail page. There are no root aliases.</p>
-          </article>
-          <article class="step">
-            <div class="step-number">02</div>
-            <h3>One copy of each script</h3>
-            <p>The catalog links to the source file in the project folder. There is no second copy that can drift out of date.</p>
-          </article>
-          <article class="step">
-            <div class="step-number">03</div>
-            <h3>Read before you run</h3>
-            <p>Installers are plain bash. Open the script, check what it changes, then pipe it to <code>bash</code>.</p>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="container">
-        <div class="add-panel">
-          <div>
-            <p class="section-eyebrow"><span class="prompt">~/scripts</span> $ mkdir next-project</p>
-            <h2>The next one-liner starts with a folder.</h2>
-            <p>
-              Add a project folder, keep one copy of its scripts, add an optional detail page, then add a card
-              to this catalog. The site stays static and the links stay stable.
-            </p>
-            <div class="add-actions">
-              <a class="btn btn-secondary" href="https://github.com/Jerit3787/scripts#adding-a-project" target="_blank" rel="noopener">Adding a project ↗</a>
-              <a class="btn btn-ghost" href="https://github.com/Jerit3787/scripts/issues" target="_blank" rel="noopener">Suggest a project</a>
-            </div>
-          </div>
+        <section class="panel" aria-labelledby="layout-title">
+          <h2 id="layout-title" class="panel-title">Folder layout</h2>
           <pre class="tree" aria-label="Project folder convention"><span class="dim">scripts/</span>
-├── <span class="accent">IDPS-WebServer/</span>
+├── <span class="hl">IDPS-WebServer/</span>
 │   ├── setup.sh
+│   ├── install-image.sh
 │   ├── reset.sh
 │   ├── README.md
-│   └── index.html   <span class="dim"># detail page</span>
+│   └── index.html  <span class="dim"># project page</span>
 └── <span class="dim">next-project/</span>
     ├── setup.sh
-    ├── reset.sh
     └── README.md</pre>
-        </div>
-      </div>
-    </section>
+        </section>
+      </aside>
+    </div>
   </main>
 
   <footer class="site-footer">
-    <div class="container">
-      <div class="footer-inner">
-        <div class="footer-brand">
-          <span class="brand-mark" aria-hidden="true">&gt;_</span>
-          <span>danplace.tech / scripts</span>
-        </div>
-        <div class="footer-links">
-          <a href="https://github.com/Jerit3787/scripts" target="_blank" rel="noopener">GitHub</a>
-          <a href="https://danplace.tech" target="_blank" rel="noopener">danplace.tech</a>
-          <a href="https://github.com/Jerit3787/IDPS-WebServer" target="_blank" rel="noopener">CAIDPS source</a>
-        </div>
-        <p class="footer-note">Every script is plain bash. Review the source before running it. © 2026 danplace.tech</p>
-      </div>
+    <div class="site-footer-inner">
+      <p>Plain bash, served as-is. Review the source before running it. © 2026 danplace.tech</p>
+      <ul class="footer-links">
+        <li><a href="https://github.com/Jerit3787/scripts" target="_blank" rel="noopener">GitHub</a></li>
+        <li><a href="https://github.com/Jerit3787/IDPS-WebServer" target="_blank" rel="noopener">CAIDPS source</a></li>
+        <li><a href="https://danplace.tech" target="_blank" rel="noopener">danplace.tech</a></li>
+      </ul>
     </div>
   </footer>
 
-  <script>
-    function fallbackCopy(text) {
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.setAttribute('readonly', '');
-      textarea.style.position = 'fixed';
-      textarea.style.top = '-1000px';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      let copied = false;
-      try {
-        copied = document.execCommand('copy');
-      } catch (error) {
-        copied = false;
-      }
-      document.body.removeChild(textarea);
-      return copied;
-    }
-
-    document.querySelectorAll('[data-copy], [data-copy-target]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        const targetId = button.getAttribute('data-copy-target');
-        const target = targetId ? document.getElementById(targetId) : null;
-        const text = button.getAttribute('data-copy') || (target ? target.innerText : '') || '';
-        if (!text) return;
-
-        let copied = false;
-        try {
-          await navigator.clipboard.writeText(text);
-          copied = true;
-        } catch (error) {
-          copied = fallbackCopy(text);
-        }
-        if (!copied) return;
-
-        const label = button.querySelector('.copy-label') || button;
-        const original = label.textContent;
-        label.textContent = 'Copied';
-        button.classList.add('copied');
-        window.setTimeout(() => {
-          label.textContent = original;
-          button.classList.remove('copied');
-        }, 1800);
-      });
-    });
-  </script>
+  <script src="assets/site.js"></script>
 </body>
 </html>
