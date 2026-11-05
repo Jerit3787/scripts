@@ -77,7 +77,10 @@ ensure_owner_docker_group() {
 }
 
 ensure_docker() {
-  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+  # The bootstrap runs Docker as root; checking compose as the invoking user would fail on a fresh install
+  # before the new docker group reaches this shell.
+  if command -v docker >/dev/null 2>&1 && as_root docker compose version >/dev/null 2>&1; then
+    ensure_owner_docker_group
     return 0
   fi
   if ! command -v docker >/dev/null 2>&1; then
@@ -86,14 +89,14 @@ ensure_docker() {
     wait_apt
     as_root sh -c 'curl -fsSL https://get.docker.com | sh' || die "Docker install failed"
   fi
-  docker compose version >/dev/null 2>&1 || {
+  as_root docker compose version >/dev/null 2>&1 || {
     wait_apt
     if command -v apt-get >/dev/null 2>&1; then
       as_root apt-get update -q && as_root apt-get install -y docker-compose-plugin
     elif command -v dnf >/dev/null 2>&1; then
       as_root dnf install -y docker-compose-plugin
     fi
-    docker compose version >/dev/null 2>&1 || die "Docker Compose v2 (docker compose) is missing"
+    as_root docker compose version >/dev/null 2>&1 || die "Docker Compose v2 (docker compose) is missing"
   }
   ensure_owner_docker_group
 }
@@ -142,6 +145,20 @@ login() {
     printf '%s' "$TOKEN" | as_root docker --config "$OWNER_HOME/.docker" login ghcr.io -u "$GHCR_USER" \
       --password-stdin >/dev/null || die "GHCR login failed for $OWNER"
     as_root chown -R "$OWNER:$OWNER_GROUP" "$OWNER_HOME/.docker"
+  fi
+}
+
+run_setup() {
+  local -a cmd=(./scripts/setup.sh --image-only --run containers "$@")
+  local quoted
+  quoted="$(printf '%q ' "${cmd[@]}")"
+  # A fresh docker group doesn't reach this shell. `sg` runs setup as the owner with that group, so the
+  # compose calls and the hostd venv work without asking for a new login.
+  if [ "$OWNER" = "$(id -un)" ] && ! id -nG | tr ' ' '\n' | grep -qx docker \
+     && command -v sg >/dev/null 2>&1 && sg docker -c true >/dev/null 2>&1; then
+    ( cd "$INSTALL_DIR" && sg docker -c "$quoted" )
+  else
+    ( cd "$INSTALL_DIR" && "${cmd[@]}" )
   fi
 }
 
@@ -208,7 +225,7 @@ as_root chown -R "$OWNER:$OWNER_GROUP" "$INSTALL_DIR"
 
 [ -x "$INSTALL_DIR/scripts/setup.sh" ] || die "The merged host bundle has no executable scripts/setup.sh"
 say "Starting the image-only host setup..."
-( cd "$INSTALL_DIR" && ./scripts/setup.sh --image-only --run containers "$@" )
+run_setup "$@"
 setup_rc=$?
 # setup.sh runs hostd as the checkout owner; if this bootstrap ran as root (sudo), the files it wrote are
 # root-owned. Hand them over and restart hostd so it can read deploy/.env and write managed files.
