@@ -3,6 +3,8 @@
 Installer, setup wizard and factory reset for the **Context-Aware Intrusion Detection & Prevention System (CAIDPS)**.
 These are the only copies; link to these paths. Linux server is the primary target (the reset's process cleanup uses `/proc`).
 
+Project page: **[scripts.danplace.tech/IDPS-WebServer](https://scripts.danplace.tech/IDPS-WebServer/)**
+
 ## Install or update
 
 ```bash
@@ -68,6 +70,12 @@ A token-managed Cloudflare Tunnel is read from the environment:
 curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/setup.sh \
   | CAIDPS_TUNNEL_TOKEN=... CAIDPS_NON_INTERACTIVE=1 bash
 ```
+
+Or run the interactive container wizard and choose **Cloudflare Login** instead of a token. The app then
+runs `cloudflared login`, creates/reuses a named tunnel, routes its public hostnames, and writes
+`deploy/cloudflared/config.yml` plus the credentials (mounted as the `caidps_tunnel_credentials` Docker
+secret). The `tunnel-login` profile is used. This login path needs the interactive wizard; unattended
+installs use a token.
 
 ### Unattended systemd install
 
@@ -156,8 +164,11 @@ The script asks you to type `reset`, then:
 - **systemd installs:** removes `caidps.service`, the backup timer and the CLI, stops leftover processes and
   legacy target containers, and drops the local `caidps` PostgreSQL database and role when the install used
   the app's local database.
-- **Never touched:** external PostgreSQL/Redis, dashboard-managed Cloudflare tunnels, and unrelated Docker
+- **Never touched:** external PostgreSQL/Redis, dashboard/token-managed Cloudflare tunnels, and unrelated Docker
   workloads. The script reports these as manual actions.
+- **Cloudflare Login tunnels:** a named tunnel created by the container wizard is recorded as
+  `CAIDPS_TUNNEL_NAME` in `deploy/.env`; the reset deletes it when the `cloudflared` CLI is available.
+  Token-managed tunnels must be deleted in Cloudflare Zero Trust.
 - **Scope:** the reset removes every CAIDPS install it finds (the default paths, the CLI symlink target and
   `--dir`). Do not run it on a host with another CAIDPS install you want to keep; stop that install and
   remove its unit/containers separately first.

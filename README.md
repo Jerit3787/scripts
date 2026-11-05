@@ -3,14 +3,17 @@
 A collection of one-line installers and utilities for [danplace.tech](https://danplace.tech) projects,
 served at **[https://scripts.danplace.tech](https://scripts.danplace.tech)** (GitHub Pages).
 
-Each project keeps **one copy** of its scripts in a folder named after the project. Link to that path;
-there are no aliases at the root.
+The root page is a **script catalog**: each project gets a card, and project-specific detail pages live in
+their own folders. Each project keeps **one copy** of its scripts in a folder named after the project.
+Link to that path; there are no aliases at the root.
 
 ---
 
 ## CAIDPS (`IDPS-WebServer/`)
 
 Context-Aware Intrusion Detection & Prevention System: installer, setup wizard and factory reset.
+
+Project page: **[scripts.danplace.tech/IDPS-WebServer](https://scripts.danplace.tech/IDPS-WebServer/)**
 
 ```bash
 # Interactive install (or update) and run the setup wizard
@@ -34,11 +37,13 @@ Details, current options and environment variables: [`IDPS-WebServer/README.md`]
 .
 ├── CNAME                  # scripts.danplace.tech
 ├── .nojekyll              # serve files as-is (no Jekyll)
-├── index.html             # landing page with copy buttons
+├── favicon.svg            # catalog/project icon
+├── index.html             # script catalog with copy buttons
 └── IDPS-WebServer/
     ├── setup.sh           # CAIDPS installer and setup wizard
     ├── reset.sh           # CAIDPS teardown / factory reset
-    ├── README.md
+    ├── README.md          # developer/operator details
+    ├── index.html         # CAIDPS project page
     └── tests/
         └── run-tests.sh   # stub-driven bash tests
 ```
@@ -47,5 +52,9 @@ Details, current options and environment variables: [`IDPS-WebServer/README.md`]
 
 1. Create a folder named after the project: `<project-name>/`.
 2. Put its scripts there (`<project-name>/setup.sh`, …) — one copy each, no root aliases.
-3. Document the one-liner in `index.html`, this README and `<project-name>/README.md`.
-4. Before pushing: `bash -n` and `shellcheck -S warning` on every script.
+3. Add an optional detail page at `<project-name>/index.html` for long setup notes, previews and options.
+4. Add a card to the root `index.html` catalog: name, short description, tags, copyable install command,
+   and links to the project page, source and documentation.
+5. Document the one-liner in this README and `<project-name>/README.md`.
+6. Before pushing: `bash -n` and `shellcheck -S warning` on every script; preview both the catalog and the
+   project page in a browser.
