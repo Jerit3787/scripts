@@ -48,6 +48,7 @@ Details, current options and environment variables: [`IDPS-WebServer/README.md`]
     ├── reset.sh           # CAIDPS teardown / factory reset
     ├── README.md          # developer/operator details
     ├── index.html         # CAIDPS project page
+    ├── logo.svg           # CAIDPS mark (copied from IDPS-WebServer frontend-react/public/logo.svg)
     └── tests/
         └── run-tests.sh   # stub-driven bash tests
 ```

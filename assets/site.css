@@ -621,32 +621,17 @@ code {
   color: var(--ds-text-subtle);
 }
 
-/* ---------- Avatar (project) ---------- */
-.avatar {
-  display: grid;
-  place-items: center;
+/* ---------- Project logo (each project's own mark, same in both themes) ---------- */
+.project-logo {
+  display: block;
   width: 40px;
   height: 40px;
   flex: 0 0 auto;
-  border-radius: 6px;
-  background: var(--ds-bg-discovery-bold);
-  color: #FFFFFF;
 }
 
-.avatar-large {
+.project-logo-large {
   width: 48px;
   height: 48px;
-  border-radius: 8px;
-}
-
-:root[data-theme="dark"] .avatar {
-  color: #1D2125;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .avatar {
-    color: #1D2125;
-  }
 }
 
 /* ---------- Lozenge, tag, badge ---------- */

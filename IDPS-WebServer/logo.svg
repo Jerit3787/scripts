@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="CAIDPS logo">
+  <title>CAIDPS</title>
+  <defs>
+    <linearGradient id="caidps-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#a855f7"/>
+    </linearGradient>
+  </defs>
+  <!-- Shield: context-aware protection -->
+  <path d="M16 2.5 L27.5 6.5 V15.2 C27.5 22.4 22.6 27.3 16 29.5 C9.4 27.3 4.5 22.4 4.5 15.2 V6.5 Z"
+        fill="url(#caidps-grad)"/>
+  <!-- Detection pulse: real-time monitoring / anomaly spike -->
+  <path d="M9 17 H12.2 L14 12.5 L17 21 L18.9 17 H23"
+        fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
