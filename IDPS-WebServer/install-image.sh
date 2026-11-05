@@ -16,6 +16,11 @@ TOKEN="${CAIDPS_GHCR_TOKEN:-}"
 GHCR_USER="${CAIDPS_GHCR_USER:-}"
 BUNDLE_CONTAINER=""
 STAGING=""
+# The checkout owner: the host updater's unit runs as this user, so its Docker credentials and files must
+# belong to it. Plain `bash` uses the invoking user; `sudo bash` uses SUDO_USER (never root).
+OWNER="${SUDO_USER:-$(id -un)}"
+OWNER_HOME="$(getent passwd "$OWNER" | cut -d: -f6)"
+OWNER_GROUP="$(id -gn "$OWNER" 2>/dev/null || echo "$OWNER")"
 
 usage() {
   cat <<'EOF'
@@ -46,9 +51,30 @@ as_root() {
 
 cleanup() {
   [ -z "$BUNDLE_CONTAINER" ] || as_root docker rm -f "$BUNDLE_CONTAINER" >/dev/null 2>&1 || true
-  [ -z "$STAGING" ] || rm -rf "$STAGING"
+  [ -z "$STAGING" ] || as_root rm -rf "$STAGING" 2>/dev/null || true
 }
 trap cleanup EXIT
+
+# A fresh cloud image's first boot runs cloud-init/unattended-upgrades, holding the apt lock for minutes.
+wait_apt() {
+  command -v pgrep >/dev/null 2>&1 || return 0
+  local i
+  for i in $(seq 1 150); do
+    if ! pgrep -x apt-get >/dev/null 2>&1 && ! pgrep -x apt >/dev/null 2>&1 \
+       && ! pgrep -x dpkg >/dev/null 2>&1 && ! pgrep -x unattended-upgr >/dev/null 2>&1; then
+      return 0
+    fi
+    [ "$i" -eq 1 ] && say "Waiting for the package manager to finish..."
+    sleep 2
+  done
+  say "The package manager is still busy; continuing."
+}
+
+ensure_owner_docker_group() {
+  if ! id -nG "$OWNER" 2>/dev/null | tr ' ' '\n' | grep -qx docker; then
+    as_root usermod -aG docker "$OWNER" >/dev/null 2>&1 || true
+  fi
+}
 
 ensure_docker() {
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
@@ -57,9 +83,11 @@ ensure_docker() {
   if ! command -v docker >/dev/null 2>&1; then
     command -v curl >/dev/null 2>&1 || die "Docker is missing and curl isn't available to install it"
     say "Installing Docker Engine and the Compose plugin..."
+    wait_apt
     as_root sh -c 'curl -fsSL https://get.docker.com | sh' || die "Docker install failed"
   fi
   docker compose version >/dev/null 2>&1 || {
+    wait_apt
     if command -v apt-get >/dev/null 2>&1; then
       as_root apt-get update -q && as_root apt-get install -y docker-compose-plugin
     elif command -v dnf >/dev/null 2>&1; then
@@ -67,10 +95,12 @@ ensure_docker() {
     fi
     docker compose version >/dev/null 2>&1 || die "Docker Compose v2 (docker compose) is missing"
   }
+  ensure_owner_docker_group
 }
 
 ensure_python() {
   command -v python3 >/dev/null 2>&1 && return 0
+  wait_apt
   if command -v apt-get >/dev/null 2>&1; then
     as_root apt-get update -q && as_root apt-get install -y python3 python3-venv
   elif command -v dnf >/dev/null 2>&1; then
@@ -104,6 +134,15 @@ login() {
   [ -n "$GHCR_USER" ] || die "CAIDPS_GHCR_TOKEN is set but CAIDPS_GHCR_USER is empty and gh cannot resolve the account"
   printf '%s' "$TOKEN" | as_root docker login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null \
     || die "GHCR login failed for $GHCR_USER"
+  # The bootstrap's docker commands run as root, but hostd runs as OWNER. Persist the same login in the
+  # owner's Docker config too; otherwise Updates/Evaluation see "no Docker token for ghcr.io".
+  if [ "$OWNER" != "root" ]; then
+    [ -n "$OWNER_HOME" ] || die "Could not find the home directory of $OWNER"
+    as_root mkdir -p "$OWNER_HOME/.docker"
+    printf '%s' "$TOKEN" | as_root docker login ghcr.io -u "$GHCR_USER" --password-stdin \
+      --config "$OWNER_HOME/.docker" >/dev/null || die "GHCR login failed for $OWNER"
+    as_root chown -R "$OWNER:$OWNER_GROUP" "$OWNER_HOME/.docker"
+  fi
 }
 
 image_version() {
@@ -128,7 +167,8 @@ ensure_python
 ensure_cloudflared
 login
 
-mkdir -p "$INSTALL_DIR"
+as_root mkdir -p "$INSTALL_DIR"
+as_root chown "$OWNER:$OWNER_GROUP" "$INSTALL_DIR"
 
 if [ -f "$INSTALL_DIR/VERSION" ] && [ "$VERSION" != "latest" ]; then
   old="$(tr -d '[:space:]' < "$INSTALL_DIR/VERSION")"
@@ -161,8 +201,21 @@ as_root docker cp "$BUNDLE_CONTAINER:/app/host-bundle/." "$STAGING/" || die "Cou
 as_root docker rm -f "$BUNDLE_CONTAINER" >/dev/null 2>&1 || true
 BUNDLE_CONTAINER=""
 [ -s "$STAGING/VERSION" ] || die "The image's /app/host-bundle has no VERSION"
-bash "$STAGING/scripts/host_bundle.sh" install "$STAGING" "$INSTALL_DIR" || die "Host bundle merge failed"
+# The staged files are root-owned (docker cp); merge as root, then hand the tree to the owner so hostd's
+# user can replace managed files during an update.
+as_root bash "$STAGING/scripts/host_bundle.sh" install "$STAGING" "$INSTALL_DIR" || die "Host bundle merge failed"
+as_root chown -R "$OWNER:$OWNER_GROUP" "$INSTALL_DIR"
 
 [ -x "$INSTALL_DIR/scripts/setup.sh" ] || die "The merged host bundle has no executable scripts/setup.sh"
 say "Starting the image-only host setup..."
 ( cd "$INSTALL_DIR" && ./scripts/setup.sh --image-only --run containers "$@" )
+setup_rc=$?
+# setup.sh runs hostd as the checkout owner; if this bootstrap ran as root (sudo), the files it wrote are
+# root-owned. Hand them over and restart hostd so it can read deploy/.env and write managed files.
+as_root chown -R "$OWNER:$OWNER_GROUP" "$INSTALL_DIR" 2>/dev/null || true
+project="$(awk -F= '$1 == "CAIDPS_COMPOSE_PROJECT" { print substr($0, index($0, "=") + 1); exit }' \
+  "$INSTALL_DIR/deploy/.env" 2>/dev/null || true)"
+unit="caidps-hostd"
+[ -z "$project" ] || [ "$project" = "caidps" ] || unit="caidps-hostd-$project"
+as_root systemctl restart "$unit" >/dev/null 2>&1 || true
+exit "$setup_rc"
