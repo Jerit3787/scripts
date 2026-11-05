@@ -7,6 +7,13 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SETUP="$ROOT/setup.sh"
 RESET="$ROOT/reset.sh"
 ORIG_PATH="$PATH"
+
+if [ ! -f /.dockerenv ] && [ ! -f /run/.containerenv ] && [ "${CAIDPS_TEST_ALLOW_HOST:-0}" != "1" ]; then
+  echo "Refusing to run outside a container: these tests exercise teardown paths under /opt, /etc/systemd and /usr/local." >&2
+  echo "Run them as documented, or set CAIDPS_TEST_ALLOW_HOST=1 on a disposable host." >&2
+  exit 2
+fi
+
 BASE="${TMPDIR:-/tmp}/scripts-tests.$$"
 PASS=0
 FAIL=0
@@ -97,6 +104,9 @@ EOF
   write_stub docker <<'EOF'
 #!/usr/bin/env bash
 printf 'DOCKER:%s\n' "$*" >> "$CAIDPS_TEST_LOG"
+if [ "${CAIDPS_TEST_LEFTOVER:-0}" = "1" ] && [ "${1:-}" = "ps" ]; then
+  echo caidps-backend-1
+fi
 case "${1:-}" in
   compose|info|ps|volume|rm) exit 0 ;;
   *) exit 0 ;;
@@ -123,6 +133,13 @@ EOF
 
   write_stub sudo <<'EOF'
 #!/usr/bin/env bash
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -u|--user|-H) shift 2 ;;
+    --) shift; break ;;
+    *) break ;;
+  esac
+done
 exec "$@"
 EOF
 
@@ -364,14 +381,120 @@ test_unattended_requires_auth() {
   assert_log_not_contains "WIZARD_ARGS:" "unattended auth: never reaches the wizard"
 }
 
+test_conflicting_flags() {
+  new_case conflict-containers
+  make_stubs
+  run_script "$SETUP" --run containers --install-local
+  assert_rc 2 "conflict containers/systemd: exits 2"
+  assert_out_contains "--run containers cannot" "conflict containers/systemd: explains the conflict"
+  assert_log_not_contains "git clone" "conflict containers/systemd: does not clone"
+
+  new_case conflict-systemd
+  make_stubs
+  run_script "$SETUP" --run systemd --project p
+  assert_rc 2 "conflict systemd/project: exits 2"
+  assert_out_contains "container-install option" "conflict systemd/project: explains the conflict"
+
+  new_case conflict-db
+  make_stubs
+  run_script "$SETUP" --install-local --postgres-url postgresql://x
+  assert_rc 2 "conflict local/url: exits 2"
+  assert_out_contains "cannot be combined" "conflict local/url: explains the conflict"
+}
+
+test_reset_5433_db() {
+  new_case reset-5433
+  make_stubs
+  make_fake_install "$CASE_DIR/install" systemd
+  sed -i 's#:5432/#:5433/#' "$CASE_DIR/install/prototype/backend/.env"
+  run_script "$RESET" --yes --dir "$CASE_DIR/install"
+  assert_rc 0 "reset 5433 DB: exits 0"
+  assert_out_contains "not touched" "reset 5433 DB: leaves a custom local cluster alone"
+  assert_log_not_contains "DROP DATABASE IF EXISTS caidps" "reset 5433 DB: never drops the default cluster"
+}
+
+test_reset_project_mismatch() {
+  new_case reset-project-mismatch
+  make_stubs
+  make_fake_install "$CASE_DIR/install" containers
+  run_script "$RESET" --yes --dir "$CASE_DIR/install" --project caidps
+  assert_rc 2 "reset project mismatch: exits 2"
+  assert_out_contains "conflicts" "reset project mismatch: explains the conflict"
+  assert_log_not_contains "DOCKER:compose" "reset project mismatch: tears nothing down"
+  if [ -e "$CASE_DIR/install" ]; then ok "reset project mismatch: keeps the checkout"; else not_ok "reset project mismatch: keeps the checkout"; fi
+}
+
+test_reset_missing_env_kind() {
+  new_case reset-missing-env
+  make_stubs
+  make_fake_install "$CASE_DIR/install" containers
+  rm -f "$CASE_DIR/install/deploy/.env"
+  run_script "$RESET" --yes --dir "$CASE_DIR/install" --kind containers --project caidps-test
+  assert_rc 0 "reset missing env + --kind: exits 0"
+  assert_log_contains "DOCKER:compose" "reset missing env + --kind: still tears down compose"
+  assert_log_contains "caidps-test" "reset missing env + --kind: uses the explicit project"
+}
+
+test_reset_token_tunnel() {
+  new_case reset-token
+  make_stubs
+  make_fake_install "$CASE_DIR/install" systemd
+  printf 'CAIDPS_TUNNEL_TOKEN=secret\n' >> "$CASE_DIR/install/prototype/backend/.env"
+  run_script "$RESET" --yes --dir "$CASE_DIR/install"
+  assert_rc 0 "reset token tunnel: exits 0"
+  assert_out_contains "token-managed" "reset token tunnel: reports the manual action"
+  assert_log_not_contains "CLOUDFLARED:tunnel delete" "reset token tunnel: does not delete an unrelated tunnel"
+}
+
+test_reset_named_tunnel() {
+  new_case reset-named
+  make_stubs
+  make_fake_install "$CASE_DIR/install" systemd
+  cat > /etc/systemd/system/caidps.service <<'UNIT'
+[Service]
+ExecStart=/bin/bash /opt/caidps/scripts/serve.sh --tunnel-name my-caidps-tunnel
+UNIT
+  run_script "$RESET" --yes --dir "$CASE_DIR/install"
+  rm -f /etc/systemd/system/caidps.service
+  assert_rc 0 "reset named tunnel: exits 0"
+  assert_log_contains "CLOUDFLARED:tunnel delete -f my-caidps-tunnel" "reset named tunnel: deletes the recorded named tunnel"
+}
+
+test_reset_leftover() {
+  new_case reset-leftover
+  make_stubs
+  make_fake_install "$CASE_DIR/install" containers
+  CAIDPS_TEST_LEFTOVER=1 run_script "$RESET" --yes --dir "$CASE_DIR/install"
+  assert_rc 1 "reset leftover: exits nonzero"
+  assert_out_contains "still present" "reset leftover: reports the remaining compose container"
+}
+
+test_dry_run_keeps_cli() {
+  new_case dry-run
+  make_stubs
+  mkdir -p "$CASE_DIR/home/.local/bin"
+  /bin/ln -s "$CASE_DIR/install/scripts/caidps" "$CASE_DIR/home/.local/bin/caidps"
+  CAIDPS_NON_INTERACTIVE=1 CAIDPS_INSTALL_DIR="$CASE_DIR/install" run_script "$SETUP" --dry-run --no-link-cli
+  assert_rc 0 "dry run: exits 0"
+  if [ -L "$CASE_DIR/home/.local/bin/caidps" ]; then ok "dry run: leaves an existing CLI link alone"; else not_ok "dry run: leaves an existing CLI link alone"; fi
+}
+
 test_help
 test_install_all_rejected
 test_non_interactive_defaults
 test_systemd_unattended
 test_unattended_requires_auth
+test_conflicting_flags
 test_reset_containers
 test_reset_systemd
 test_reset_external_db
+test_reset_5433_db
+test_reset_project_mismatch
+test_reset_missing_env_kind
+test_reset_token_tunnel
+test_reset_named_tunnel
+test_reset_leftover
+test_dry_run_keeps_cli
 
 say ""
 say "passed: ${PASS}, failed: ${FAIL}"

@@ -29,6 +29,7 @@ ASSUME_YES=0
 PURGE_PACKAGES=0
 EXTRA_DIR=""
 PROJECT_OVERRIDE=""
+KIND_OVERRIDE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --yes|-y) ASSUME_YES=1 ;;
@@ -39,12 +40,20 @@ while [ $# -gt 0 ]; do
     --project)
       [ $# -ge 2 ] || { echo -e "${RED}[error] --project needs a name${RESET}" >&2; exit 2; }
       PROJECT_OVERRIDE="$2"; shift ;;
+    --kind)
+      [ $# -ge 2 ] || { echo -e "${RED}[error] --kind needs containers or systemd${RESET}" >&2; exit 2; }
+      case "$2" in
+        containers|systemd) KIND_OVERRIDE="$2" ;;
+        *) echo -e "${RED}[error] --kind must be containers or systemd${RESET}" >&2; exit 2 ;;
+      esac
+      shift ;;
     -h|--help)
-      echo "Usage: reset.sh [--yes] [--purge-packages] [--dir PATH] [--project NAME]"
+      echo "Usage: reset.sh [--yes] [--purge-packages] [--dir PATH] [--project NAME] [--kind containers|systemd]"
       echo "  --yes             no confirmation prompt (scripted runs)"
       echo "  --purge-packages  also uninstall cloudflared, Node.js, Docker (and ALL Docker data), whiptail"
       echo "  --dir PATH        also remove a CAIDPS install at PATH"
-      echo "  --project NAME    compose project when deploy/.env is missing"
+      echo "  --project NAME    compose project when deploy/.env is missing or unreadable"
+      echo "  --kind KIND       force the install kind when metadata is missing (containers|systemd)"
       exit 0 ;;
     *) echo -e "${RED}[error] Unknown option: $1${RESET}" >&2; exit 2 ;;
   esac
@@ -100,6 +109,11 @@ as_postgres() {
   else
     sudo -u postgres "$@"
   fi
+}
+
+# The app's local PostgreSQL install lives on the default local socket/port; ignore any inherited PG* target.
+as_postgres_local() {
+  ( unset PGHOST PGPORT PGDATABASE PGUSER; as_postgres "$@" )
 }
 
 # CAIDPS processes, matched on their command line.
@@ -176,32 +190,63 @@ if [ -n "$EXTRA_DIR" ]; then
 fi
 
 CONTAINERS="juice-shop vulnbank medivault dvna cicd-goat"
-CF_DIRS=("${ACTUAL_HOME}/.cloudflared")
+CF_DIRS=("${ACTUAL_HOME}/.cloudflared" "/etc/cloudflared")
 [ "${ACTUAL_HOME}" = "/root" ] || CF_DIRS+=("/root/.cloudflared")
 
 install_kind() {
-  local d="$1" envf="$1/deploy/.env"
+  local d="$1" envf="$1/deploy/.env" project suffix
+  if [ -n "$KIND_OVERRIDE" ]; then echo "$KIND_OVERRIDE"; return 0; fi
   if [ -f "$envf" ]; then
-    if grep -q '^CAIDPS_INSTALL=containers' "$envf" 2>/dev/null; then echo containers; return; fi
-    if grep -q '^CAIDPS_COMPOSE_PROJECT=' "$envf" 2>/dev/null; then echo containers; return; fi
+    if ! as_root test -r "$envf"; then
+      echo -e "${RED}[error] ${envf} is not readable even with sudo; use --kind containers|systemd.${RESET}" >&2
+      return 1
+    fi
+    if as_root grep -q '^CAIDPS_INSTALL=containers' "$envf" 2>/dev/null; then echo containers; return 0; fi
+    if as_root grep -q '^CAIDPS_COMPOSE_PROJECT=..*' "$envf" 2>/dev/null; then echo containers; return 0; fi
+    if as_root grep -q '^CAIDPS_INSTALL=systemd' "$envf" 2>/dev/null; then echo systemd; return 0; fi
   fi
-  if [ -f "$d/prototype/backend/.env" ] && grep -q '^CAIDPS_PROFILE=production' "$d/prototype/backend/.env" 2>/dev/null; then
-    echo systemd
-    return
+  if [ -n "$PROJECT_OVERRIDE" ]; then echo containers; return 0; fi
+
+  project="$(install_project "$d")" || return 1
+  suffix="$(unit_suffix "$project")"
+  if as_root test -f "/etc/systemd/system/caidps-hostd${suffix}.service"; then echo containers; return 0; fi
+
+  # Last resort for a missing env: find a live Compose project before treating this as a checkout.
+  if command -v docker >/dev/null 2>&1 && as_root docker info >/dev/null 2>&1; then
+    if as_root docker ps -a --filter "label=com.docker.compose.project=${project}" --format '{{.Names}}' 2>/dev/null | grep -q .; then
+      echo containers
+      return 0
+    fi
+    if as_root docker volume ls --filter "label=com.docker.compose.project=${project}" --format '{{.Name}}' 2>/dev/null | grep -q .; then
+      echo containers
+      return 0
+    fi
   fi
   echo systemd
 }
 
 install_project() {
-  local d="$1" project="$PROJECT_OVERRIDE"
-  if [ -z "$project" ] && [ -f "$d/deploy/.env" ]; then
-    project="$(sed -n 's/^CAIDPS_COMPOSE_PROJECT=//p' "$d/deploy/.env" | tail -n 1)"
-    project="${project%\"}"; project="${project#\"}"
-    project="${project%\'}"; project="${project#\'}"
+  local d="$1" recorded="" project="$PROJECT_OVERRIDE"
+  if [ -f "$d/deploy/.env" ]; then
+    if ! as_root test -r "$d/deploy/.env"; then
+      echo -e "${RED}[error] ${d}/deploy/.env is not readable even with sudo; use --project NAME.${RESET}" >&2
+      return 1
+    fi
+    recorded="$(as_root sed -n 's/^CAIDPS_COMPOSE_PROJECT=//p' "$d/deploy/.env" | tail -n 1)"
+    recorded="${recorded%\"}"; recorded="${recorded#\"}"
+    recorded="${recorded%\'}"; recorded="${recorded#\'}"
+  fi
+  if [ -n "$recorded" ]; then
+    if [ -n "$PROJECT_OVERRIDE" ] && [ "$PROJECT_OVERRIDE" != "$recorded" ]; then
+      echo -e "${RED}[error] --project ${PROJECT_OVERRIDE} conflicts with ${recorded} recorded in ${d}/deploy/.env.${RESET}" >&2
+      return 1
+    fi
+    project="$recorded"
   fi
   [ -n "$project" ] || project="caidps"
   if ! printf '%s' "$project" | grep -qE '^[a-z0-9][a-z0-9_-]*$'; then
-    project="caidps"
+    echo -e "${RED}[error] Invalid compose project '${project}' (lowercase letters, digits, - and _).${RESET}" >&2
+    return 1
   fi
   echo "$project"
 }
@@ -210,9 +255,13 @@ install_db_url() {
   local d="$1" f="$1/prototype/backend/.env" url=""
   [ -f "$f" ] || f="$1/deploy/.env"
   if [ -f "$f" ]; then
-    url="$(sed -n 's/^CAIDPS_DATABASE_URL=//p' "$f" | tail -n 1)"
-    url="${url%\"}"; url="${url#\"}"
-    url="${url%\'}"; url="${url#\'}"
+    if as_root test -r "$f"; then
+      url="$(as_root sed -n 's/^CAIDPS_DATABASE_URL=//p' "$f" | tail -n 1)"
+      url="${url%\"}"; url="${url#\"}"
+      url="${url%\'}"; url="${url#\'}"
+    else
+      echo -e "${YELLOW}[reset] ${f} is not readable; the database was not inspected.${RESET}" >&2
+    fi
   fi
   echo "$url"
 }
@@ -220,8 +269,8 @@ install_db_url() {
 install_redis_url() {
   local d="$1" f="$1/prototype/backend/.env" url=""
   [ -f "$f" ] || f="$1/deploy/.env"
-  if [ -f "$f" ]; then
-    url="$(sed -n 's/^CAIDPS_REDIS_URL=//p' "$f" | tail -n 1)"
+  if [ -f "$f" ] && as_root test -r "$f"; then
+    url="$(as_root sed -n 's/^CAIDPS_REDIS_URL=//p' "$f" | tail -n 1)"
     url="${url%\"}"; url="${url#\"}"
     url="${url%\'}"; url="${url#\'}"
   fi
@@ -233,13 +282,42 @@ redact_url() {
   printf '%s' "$1" | sed -E 's#(://)[^/@]*@#\1***@#'
 }
 
+env_value_nonempty() {   # env_value_nonempty <file> <key>
+  local value
+  value="$(as_root sed -n "s/^$2=//p" "$1" 2>/dev/null | tail -n 1)"
+  value="${value%\"}"; value="${value#\"}"
+  value="${value%\'}"; value="${value#\'}"
+  [ -n "$value" ]
+}
+
 install_tunnel_name() {
-  local d="$1" name="caidps"
-  if [ -f /etc/systemd/system/caidps.service ]; then
-    name="$(sed -n 's/.*--tunnel-name[ =]\([^ "]*\).*/\1/p' /etc/systemd/system/caidps.service | head -n 1)"
+  local name="" unit="/etc/systemd/system/caidps.service"
+  if as_root test -f "$unit"; then
+    name="$(as_root sed -n 's/.*--tunnel-name[ =]\([^ "]*\).*/\1/p' "$unit" | head -n 1)"
   fi
-  [ -n "$name" ] || name="caidps"
   echo "$name"
+}
+
+install_tunnel_is_token() {
+  local d="$1" f unit="/etc/systemd/system/caidps.service"
+  for f in "$d/deploy/.env" "$d/prototype/backend/.env"; do
+    if [ -f "$f" ] && env_value_nonempty "$f" CAIDPS_TUNNEL_TOKEN; then
+      return 0
+    fi
+  done
+  if as_root test -f "$unit" && as_root grep -q -- '--tunnel-token' "$unit" 2>/dev/null; then
+    return 0
+  fi
+  return 1
+}
+
+install_tunnel_is_quick() {
+  local unit="/etc/systemd/system/caidps.service"
+  as_root test -f "$unit" || return 1
+  as_root grep -q -- '--tunnel' "$unit" 2>/dev/null || return 1
+  as_root grep -q -- '--tunnel-name' "$unit" 2>/dev/null && return 1
+  as_root grep -q -- '--tunnel-token' "$unit" 2>/dev/null && return 1
+  return 0
 }
 
 db_url_user() {
@@ -250,6 +328,17 @@ db_url_host() {
   local rest="${1#*://}"
   rest="${rest#*@}"
   printf '%s' "${rest%%[:/]*}"
+}
+db_url_port() {
+  local rest="${1#*://}" hostport port
+  rest="${rest#*@}"
+  hostport="${rest%%/*}"
+  case "$hostport" in
+    *:*) port="${hostport##*:}" ;;
+    *) port="5432" ;;
+  esac
+  [ -n "$port" ] || port="5432"
+  echo "$port"
 }
 db_url_name() {
   local rest="${1#*://}"
@@ -265,7 +354,8 @@ db_url_is_local() {
 db_url_is_local_default() {
   db_url_is_local "$1" \
     && [ "$(db_url_user "$1")" = "caidps" ] \
-    && [ "$(db_url_name "$1")" = "caidps" ]
+    && [ "$(db_url_name "$1")" = "caidps" ] \
+    && [ "$(db_url_port "$1")" = "5432" ]
 }
 
 unit_suffix() {
@@ -311,9 +401,9 @@ stop_services() {
       echo -e "${CYAN}[1/6] Removing the CAIDPS systemd service and backup timer...${RESET}"
       as_root "$d/scripts/service.sh" remove || true
     fi
+    remove_unit caidps
     remove_unit "$backup"
   fi
-  remove_unit caidps
 }
 
 compose_down() {
@@ -361,23 +451,28 @@ drop_local_database() {
     return 1
   fi
   echo -e "${CYAN}[reset] Dropping the local PostgreSQL database and role 'caidps'...${RESET}"
-  as_postgres psql -v ON_ERROR_STOP=1 -q \
+  as_postgres_local psql -v ON_ERROR_STOP=1 -q \
     -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'caidps' AND pid <> pg_backend_pid();" \
     >/dev/null 2>&1 || true
-  as_postgres psql -v ON_ERROR_STOP=1 -q -c "DROP DATABASE IF EXISTS caidps;" >/dev/null 2>&1 || true
-  as_postgres psql -v ON_ERROR_STOP=1 -q -c "DROP ROLE IF EXISTS caidps;" >/dev/null 2>&1 || true
+  as_postgres_local psql -v ON_ERROR_STOP=1 -q -c "DROP DATABASE IF EXISTS caidps;" >/dev/null 2>&1 || true
+  as_postgres_local psql -v ON_ERROR_STOP=1 -q -c "DROP ROLE IF EXISTS caidps;" >/dev/null 2>&1 || true
 }
 
 remove_host_tunnel() {
-  local kind="$1" d="$2" name="$3"
-  if [ "$kind" = "containers" ]; then
-    if [ -f "$d/deploy/.env" ] && grep -q '^CAIDPS_TUNNEL_TOKEN=' "$d/deploy/.env" 2>/dev/null; then
-      echo -e "${YELLOW}[reset] The Cloudflare tunnel is token-managed; delete it in Zero Trust.${RESET}" >&2
-    fi
+  local kind="$1" name="$2" is_token="$3" is_quick="$4"
+  if [ "$is_token" -eq 1 ]; then
+    echo -e "${YELLOW}[reset] The Cloudflare tunnel is token-managed; delete it in Zero Trust.${RESET}" >&2
     return 0
   fi
-  if [ -f "$d/prototype/backend/.env" ] && grep -q '^CAIDPS_TUNNEL_TOKEN=' "$d/prototype/backend/.env" 2>/dev/null; then
-    echo -e "${YELLOW}[reset] The Cloudflare tunnel is token-managed; delete it in Zero Trust.${RESET}" >&2
+  if [ "$kind" = "containers" ]; then
+    return 0
+  fi
+  if [ -z "$name" ]; then
+    if [ "$is_quick" -eq 1 ]; then
+      echo -e "${YELLOW}[reset] This was a Quick Tunnel; there is no named tunnel to delete.${RESET}" >&2
+    else
+      echo -e "${YELLOW}[reset] No host-managed named Cloudflare Tunnel was detected; nothing deleted remotely.${RESET}" >&2
+    fi
     return 0
   fi
   if command -v cloudflared >/dev/null 2>&1; then
@@ -393,14 +488,22 @@ INSTALL_PROJECTS=()
 INSTALL_DB_URLS=()
 INSTALL_REDIS_URLS=()
 INSTALL_TUNNEL_NAMES=()
+INSTALL_TUNNEL_TOKENS=()
+INSTALL_TUNNEL_QUICKS=()
+HAS_SYSTEMD=0
 i=0
 while [ "$i" -lt "${#INSTALL_DIRS[@]}" ]; do
   _d="${INSTALL_DIRS[$i]}"
-  INSTALL_KINDS+=("$(install_kind "$_d")")
-  INSTALL_PROJECTS+=("$(install_project "$_d")")
+  _kind="$(install_kind "$_d")" || exit 2
+  _project="$(install_project "$_d")" || exit 2
+  INSTALL_KINDS+=("$_kind")
+  INSTALL_PROJECTS+=("$_project")
   INSTALL_DB_URLS+=("$(install_db_url "$_d")")
   INSTALL_REDIS_URLS+=("$(install_redis_url "$_d")")
   INSTALL_TUNNEL_NAMES+=("$(install_tunnel_name "$_d")")
+  if install_tunnel_is_token "$_d"; then INSTALL_TUNNEL_TOKENS+=(1); else INSTALL_TUNNEL_TOKENS+=(0); fi
+  if install_tunnel_is_quick "$_d"; then INSTALL_TUNNEL_QUICKS+=(1); else INSTALL_TUNNEL_QUICKS+=(0); fi
+  [ "$_kind" = "systemd" ] && HAS_SYSTEMD=1
   i=$((i + 1))
 done
 
@@ -459,13 +562,15 @@ while [ "$i" -lt "${#INSTALL_DIRS[@]}" ]; do
   stop_services "${INSTALL_DIRS[$i]}" "${INSTALL_KINDS[$i]}" "${INSTALL_PROJECTS[$i]}"
   i=$((i + 1))
 done
-for pattern in "${PROCESSES[@]}"; do
-  stop_matching "$pattern" TERM
-done
-sleep 1
-for pattern in "${PROCESSES[@]}"; do
-  stop_matching "$pattern" KILL
-done
+if [ "$HAS_SYSTEMD" -eq 1 ]; then
+  for pattern in "${PROCESSES[@]}"; do
+    stop_matching "$pattern" TERM
+  done
+  sleep 1
+  for pattern in "${PROCESSES[@]}"; do
+    stop_matching "$pattern" KILL
+  done
+fi
 
 # 2. Container stacks and legacy target containers.
 i=0
@@ -475,12 +580,14 @@ while [ "$i" -lt "${#INSTALL_DIRS[@]}" ]; do
   fi
   i=$((i + 1))
 done
-remove_target_containers
+if [ "$HAS_SYSTEMD" -eq 1 ]; then
+  remove_target_containers
+fi
 
 # 3. Host-managed tunnels (before credentials are removed).
 i=0
 while [ "$i" -lt "${#INSTALL_DIRS[@]}" ]; do
-  remove_host_tunnel "${INSTALL_KINDS[$i]}" "${INSTALL_DIRS[$i]}" "${INSTALL_TUNNEL_NAMES[$i]}"
+  remove_host_tunnel "${INSTALL_KINDS[$i]}" "${INSTALL_TUNNEL_NAMES[$i]}" "${INSTALL_TUNNEL_TOKENS[$i]}" "${INSTALL_TUNNEL_QUICKS[$i]}"
   i=$((i + 1))
 done
 for d in "${CF_DIRS[@]}"; do
@@ -497,12 +604,27 @@ while [ "$i" -lt "${#INSTALL_DIRS[@]}" ]; do
   i=$((i + 1))
 done
 
+remove_cli_links() {
+  local link target d
+  for link in /usr/local/bin/caidps "${ACTUAL_HOME}/.local/bin/caidps"; do
+    [ -L "$link" ] || continue
+    target="$(readlink -f "$link" 2>/dev/null || readlink "$link" 2>/dev/null || true)"
+    [ -n "$target" ] || continue
+    for d in "${INSTALL_DIRS[@]+"${INSTALL_DIRS[@]}"}"; do
+      if [ "$target" = "$d/scripts/caidps" ]; then
+        as_root rm -f "$link" 2>/dev/null || true
+        break
+      fi
+    done
+  done
+}
+
 # 5. Installs, the CLI and temporary files.
 echo -e "${CYAN}[4/6] Deleting the CAIDPS install and the 'caidps' command...${RESET}"
 for d in "${INSTALL_DIRS[@]+"${INSTALL_DIRS[@]}"}"; do
   as_root rm -rf "$d"
 done
-as_root rm -f /usr/local/bin/caidps "${ACTUAL_HOME}/.local/bin/caidps" 2>/dev/null || true
+remove_cli_links
 rm -rf /tmp/caidps* 2>/dev/null || true
 
 # 6. Packages (opt-in)
@@ -572,21 +694,35 @@ compose_has_networks() {
 }
 local_db_exists() {
   command -v psql >/dev/null 2>&1 || return 1
-  as_postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname = 'caidps'" 2>/dev/null | grep -q 1
+  as_postgres_local psql -tAc "SELECT 1 FROM pg_database WHERE datname = 'caidps'" 2>/dev/null | grep -q 1
 }
 local_role_exists() {
   command -v psql >/dev/null 2>&1 || return 1
-  as_postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'caidps'" 2>/dev/null | grep -q 1
+  as_postgres_local psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'caidps'" 2>/dev/null | grep -q 1
 }
 pg_ready() {
   command -v psql >/dev/null 2>&1 || return 1
-  as_postgres psql -tAc "SELECT 1" >/dev/null 2>&1
+  as_postgres_local psql -tAc "SELECT 1" >/dev/null 2>&1
 }
 legacy_target_exists() {
   as_root docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qxE "$(echo "$CONTAINERS" | tr ' ' '|')"
 }
+cli_link_leftover() {
+  local link target d
+  for link in /usr/local/bin/caidps "${ACTUAL_HOME}/.local/bin/caidps"; do
+    [ -L "$link" ] || continue
+    target="$(readlink -f "$link" 2>/dev/null || readlink "$link" 2>/dev/null || true)"
+    [ -n "$target" ] || continue
+    for d in "${INSTALL_DIRS[@]+"${INSTALL_DIRS[@]}"}"; do
+      [ "$target" = "$d/scripts/caidps" ] && return 0
+    done
+  done
+  return 1
+}
 
-check "Service (caidps.service)" test -e /etc/systemd/system/caidps.service
+if [ "$HAS_SYSTEMD" -eq 1 ]; then
+  check "Service (caidps.service)" test -e /etc/systemd/system/caidps.service
+fi
 
 DOCKER_READY=0
 if command -v docker >/dev/null 2>&1 && as_root docker info >/dev/null 2>&1; then
@@ -643,13 +779,19 @@ if [ "$DOCKER_READY" -ne 1 ] && command -v docker >/dev/null 2>&1 && [ "$PURGE_P
   LEFT=1
 fi
 
-check "Global CLI (/usr/local/bin/caidps)" test -e /usr/local/bin/caidps
-check "User CLI (${ACTUAL_HOME}/.local/bin/caidps)" test -e "${ACTUAL_HOME}/.local/bin/caidps"
-check "CAIDPS processes" still_running
+check "CAIDPS CLI links" cli_link_leftover
+if [ "$HAS_SYSTEMD" -eq 1 ]; then
+  if command -v pgrep >/dev/null 2>&1; then
+    check "CAIDPS processes" still_running
+  else
+    echo -e "  • CAIDPS processes : ${YELLOW}cannot verify (pgrep not installed)${RESET}"
+    LEFT=1
+  fi
+fi
 for d in "${CF_DIRS[@]}"; do
   check "Cloudflare credentials (${d})" as_root test -e "$d"
 done
-if [ "$DOCKER_READY" -eq 1 ]; then
+if [ "$DOCKER_READY" -eq 1 ] && [ "$HAS_SYSTEMD" -eq 1 ]; then
   check "Target containers" legacy_target_exists
 fi
 

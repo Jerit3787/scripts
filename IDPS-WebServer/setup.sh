@@ -44,7 +44,7 @@ App setup.sh options passed through:
   --upstream URL                   Protect an existing app instead of Juice Shop.
   --restore ARCHIVE                Restore a backup into a new container stack.
   --no-link-cli                    Do not install the global caidps command.
-  --dry-run                        Resolve the configuration without changing anything.
+  --dry-run                        Resolve the configuration without installing packages, changing permissions, linking the CLI, or starting services (the checkout may still be cloned/updated).
 
 Note: --install-all belongs to scripts/serve.sh, not scripts/setup.sh.
 EOF
@@ -125,7 +125,17 @@ if has_arg --help "$@" || has_arg -h "$@"; then
   exit 0
 fi
 
-if has_arg --install-all "$@"; then
+INSTALL_ALL=0
+LINK_CLI=1
+for arg in "$@"; do
+  case "$arg" in
+    --install-all|--install-all=*) INSTALL_ALL=1 ;;
+    --no-link-cli) LINK_CLI=0 ;;
+    --link-cli) LINK_CLI=1 ;;
+  esac
+done
+
+if [ "$INSTALL_ALL" -eq 1 ]; then
   {
     echo "[error] --install-all is a scripts/serve.sh flag, not a scripts/setup.sh option." >&2
     echo "" >&2
@@ -137,19 +147,24 @@ if has_arg --install-all "$@"; then
   exit 2
 fi
 
-if has_arg --no-link-cli "$@"; then
-  LINK_CLI=0
-fi
-if has_arg --link-cli "$@"; then
-  LINK_CLI=1
-fi
 if has_arg --dry-run "$@"; then
   DRY_RUN=1
+  NO_TUI=1
 fi
 if has_arg --no-tui "$@" || has_arg --cli "$@"; then
   NO_TUI=1
 fi
-if [ -n "${CAIDPS_NON_INTERACTIVE:-}" ] || [ -n "${CI:-}" ] || [ "$HAS_TTY" -eq 0 ] || has_arg --non-interactive "$@"; then
+
+NONINTERACTIVE_ENV=0
+case "${CAIDPS_NON_INTERACTIVE:-}" in
+  ""|0|false|FALSE|no|NO) ;;
+  *) NONINTERACTIVE_ENV=1 ;;
+esac
+case "${CI:-}" in
+  ""|0|false|FALSE|no|NO) ;;
+  *) NONINTERACTIVE_ENV=1 ;;
+esac
+if [ "$NONINTERACTIVE_ENV" -eq 1 ] || [ "$HAS_TTY" -eq 0 ] || has_arg --non-interactive "$@"; then
   NON_INTERACTIVE=1
 fi
 
@@ -168,6 +183,25 @@ for flag in --install-local --postgres-url --redis-url; do
     SYSTEMD_HINTS=1
   fi
 done
+
+# Reject combinations the app's parser would silently ignore or that would overwrite a chosen datastore.
+if [ "$RUN_MODE_SET" -eq 1 ] && [ "$RUN_MODE" = "containers" ] && [ "$SYSTEMD_HINTS" -eq 1 ]; then
+  echo "[error] --run containers cannot be combined with --install-local, --postgres-url or --redis-url." >&2
+  echo "Use --run systemd for a host/systemd install, or drop the datastore flags for the container stack." >&2
+  exit 2
+fi
+if has_arg --install-local "$@" && { has_arg --postgres-url "$@" || has_arg --redis-url "$@"; }; then
+  echo "[error] --install-local cannot be combined with --postgres-url/--redis-url; choose one." >&2
+  exit 2
+fi
+if [ "$RUN_MODE" = "systemd" ]; then
+  for flag in --project --tls --restore --upstream; do
+    if has_arg "$flag" "$@"; then
+      echo "[error] ${flag} is a container-install option and cannot be used with --run systemd." >&2
+      exit 2
+    fi
+  done
+fi
 
 # Translate unattended intent into the current app's flags. Explicit user flags win.
 WIZARD_ARGS=("$@")
@@ -274,6 +308,10 @@ ensure_git() {
   if command -v git >/dev/null 2>&1; then
     return 0
   fi
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo -e "${RED}[error] git is required even for --dry-run; install it first.${RESET}" >&2
+    return 1
+  fi
   echo -e "${YELLOW}[setup] git is not installed. Installing git automatically...${RESET}"
   local os_type
   os_type="$(uname -s)"
@@ -324,6 +362,10 @@ ensure_git() {
 
 ensure_lfs() {
   if command -v git-lfs >/dev/null 2>&1 || git lfs version >/dev/null 2>&1; then
+    return 0
+  fi
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo -e "${YELLOW}[setup] git-lfs is not installed; --dry-run will not install it.${RESET}" >&2
     return 0
   fi
   echo -e "${YELLOW}[setup] git-lfs is not installed. Installing git-lfs automatically...${RESET}"
@@ -385,10 +427,46 @@ run_as_user() {
   fi
 }
 
+ensure_curl() {
+  if command -v curl >/dev/null 2>&1; then
+    return 0
+  fi
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo -e "${YELLOW}[setup] curl is missing; --dry-run will not install it.${RESET}" >&2
+    return 0
+  fi
+  echo -e "${YELLOW}[setup] Installing curl (needed by the app's dependency installers)...${RESET}"
+  case "$(uname -s)" in
+    Linux)
+      if command -v apt-get >/dev/null 2>&1; then
+        as_root apt-get update -y && as_root apt-get install -y curl
+      elif command -v dnf >/dev/null 2>&1; then
+        as_root dnf install -y curl
+      elif command -v yum >/dev/null 2>&1; then
+        as_root yum install -y curl
+      elif command -v pacman >/dev/null 2>&1; then
+        as_root pacman -Sy --noconfirm curl
+      elif command -v apk >/dev/null 2>&1; then
+        as_root apk add --no-cache curl
+      fi
+      ;;
+    Darwin)
+      if command -v brew >/dev/null 2>&1; then
+        brew install curl || true
+      fi
+      ;;
+  esac
+  command -v curl >/dev/null 2>&1
+}
+
 ensure_python() {
   if command -v python3 >/dev/null 2>&1 \
       && python3 -c 'import venv' >/dev/null 2>&1 \
       && python3 -m pip --version >/dev/null 2>&1; then
+    return 0
+  fi
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo -e "${YELLOW}[setup] Python 3/venv/pip are missing; --dry-run will not install them.${RESET}" >&2
     return 0
   fi
   echo -e "${YELLOW}[setup] Installing Python 3, venv and pip (needed by the setup wizard and host updater)...${RESET}"
@@ -522,6 +600,8 @@ ensure_backend_venv() {
   local py="$venv/bin/python"
 
   if [ -x "$py" ] && "$py" -c 'import sqlalchemy, psycopg2, alembic, fastapi, pydantic' >/dev/null 2>&1; then
+    # The checkout may have new pinned dependencies after an update; sync the core set.
+    run_as_user "$py" -m pip install -r "$dir/prototype/backend/requirements.txt" || return 1
     return 0
   fi
   echo -e "${YELLOW}[setup] Preparing the backend Python environment...${RESET}"
@@ -666,6 +746,7 @@ forget_token() {
 # Step 0: Ensure git, git-lfs and Python are installed
 ensure_git || exit 1
 ensure_lfs || true
+ensure_curl || true
 ensure_python || exit 1
 
 REPO_URL="https://github.com/Jerit3787/IDPS-WebServer.git"
@@ -779,6 +860,10 @@ if [ -d "$TARGET_DIR" ] && [ -f "${TARGET_DIR}/scripts/serve.sh" ]; then
     else
       echo -e "${YELLOW}[git] Could not update ${TARGET_DIR} automatically (offline, no access, or local changes)." \
               "Continuing with the code already there; update it later with: caidps update${RESET}" >&2
+      if [ "$NON_INTERACTIVE" -eq 1 ]; then
+        echo -e "${RED}[error] Unattended update failed; refusing to configure stale or wrong-branch code.${RESET}" >&2
+        exit 1
+      fi
     fi
     # Submodules are initialized on-demand by scripts/serve.sh
   fi
@@ -924,12 +1009,14 @@ fi
 git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*" 2>/dev/null || true
 
 # Ensure git credentials are configured for LFS and submodules if gh is authenticated
-if command -v gh >/dev/null 2>&1; then
+if [ "$DRY_RUN" -eq 0 ] && command -v gh >/dev/null 2>&1; then
   gh auth setup-git 2>/dev/null || true
 fi
 
 # Ensure git-lfs model weights are pulled
-if command -v git-lfs >/dev/null 2>&1 || git lfs version >/dev/null 2>&1; then
+if [ "$DRY_RUN" -eq 1 ]; then
+  echo -e "${YELLOW}[lfs] --dry-run: skipping the model-weight download.${RESET}"
+elif command -v git-lfs >/dev/null 2>&1 || git lfs version >/dev/null 2>&1; then
   echo -e "${GREEN}[lfs] Checking Git LFS model weights...${RESET}"
   git lfs install --local 2>/dev/null || true
   if ! GIT_TERMINAL_PROMPT=0 git lfs pull; then
@@ -942,7 +1029,9 @@ fi
 forget_token
 
 # Configure all permissions across the repository and docker group
-configure_permissions "$TARGET_DIR"
+if [ "$DRY_RUN" -eq 0 ]; then
+  configure_permissions "$TARGET_DIR"
+fi
 
 # Explicit non-interactive systemd needs the host prerequisites the app's non-interactive
 # setup path skips: Docker for the target, Node/npm for the dashboard, and the backend venv.
@@ -988,13 +1077,22 @@ if [ "$NON_INTERACTIVE" -eq 1 ] && [ "$SYSTEMD_MODE" -eq 1 ] && [ "$DRY_RUN" -eq
 fi
 
 # service.sh install links the CLI unconditionally; honor --no-link-cli after it runs.
-if [ "$LINK_CLI" -eq 0 ]; then
-  rm -f "${ACTUAL_HOME}/.local/bin/caidps" 2>/dev/null || true
-  if [ -w /usr/local/bin ] || [ ! -e /usr/local/bin/caidps ]; then
-    rm -f /usr/local/bin/caidps 2>/dev/null || true
-  else
-    as_root rm -f /usr/local/bin/caidps 2>/dev/null || true
-  fi
+remove_target_cli_links() {
+  local link target
+  for link in /usr/local/bin/caidps "${ACTUAL_HOME}/.local/bin/caidps"; do
+    [ -L "$link" ] || continue
+    target="$(readlink -f "$link" 2>/dev/null || readlink "$link" 2>/dev/null || true)"
+    [ "$target" = "$TARGET_DIR/scripts/caidps" ] || continue
+    if [ -w "$(dirname "$link")" ]; then
+      rm -f "$link" 2>/dev/null || true
+    else
+      as_root rm -f "$link" 2>/dev/null || true
+    fi
+  done
+}
+
+if [ "$LINK_CLI" -eq 0 ] && [ "$DRY_RUN" -eq 0 ]; then
+  remove_target_cli_links
 fi
 
 if [ "$DRY_RUN" -eq 1 ]; then
