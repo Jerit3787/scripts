@@ -75,7 +75,9 @@ Or run the interactive container wizard and choose **Cloudflare Login** instead 
 runs `cloudflared login`, creates/reuses a named tunnel, routes its public hostnames, and writes
 `deploy/cloudflared/config.yml` plus the credentials (mounted as the `caidps_tunnel_credentials` Docker
 secret). The `tunnel-login` profile is used. This login path needs the interactive wizard; unattended
-installs use a token.
+installs use a token. If the name already belongs to a tunnel created in the Cloudflare dashboard, it has
+no local credentials: the wizard asks for another name, and the **Tunnel Token** option is the way to
+keep using that dashboard-managed tunnel.
 
 ### Unattended systemd install
 
