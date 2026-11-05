@@ -42,8 +42,10 @@ Details, current options and environment variables: [`IDPS-WebServer/README.md`]
 ├── 404.html               # not-found page (absolute /assets paths)
 ├── assets/
 │   ├── site.css           # shared Atlassian-style tokens and components (light/dark)
-│   ├── site.js            # theme toggle, tabs, copy-to-clipboard flags
+│   ├── site.js            # theme toggle, tabs, copy flags, script viewer
 │   └── icons.svg          # SVG icon sprite
+├── tools/
+│   └── stamp-assets.sh    # stamps ?v=<hash> on asset URLs in every page
 └── IDPS-WebServer/
     ├── setup.sh           # CAIDPS installer and setup wizard
     ├── reset.sh           # CAIDPS teardown / factory reset
@@ -62,5 +64,13 @@ Details, current options and environment variables: [`IDPS-WebServer/README.md`]
 4. Add a card to the root `index.html` catalog: name, short description, tags, copyable install command,
    and links to the project page, source and documentation.
 5. Document the one-liner in this README and `<project-name>/README.md`.
-6. Before pushing: `bash -n` and `shellcheck -S warning` on every script; preview both the catalog and the
+6. Link the shared files from the project page as plain `../assets/site.css`, `../assets/site.js` and
+   `../assets/icons.svg#…`, then run `tools/stamp-assets.sh` to add the version stamp.
+7. Before pushing: `bash -n` and `shellcheck -S warning` on every script; preview both the catalog and the
    project page in a browser.
+
+## Changing the site styles
+
+GitHub Pages lets browsers cache files for 10 minutes, so a page can load before its new stylesheet does.
+Every page links `assets/` with a `?v=<hash>` stamp. After changing anything in `assets/`, run
+`tools/stamp-assets.sh` and commit the updated pages with it.

@@ -5,7 +5,8 @@
   var root = document.documentElement;
   var THEME_KEY = 'ds-theme';
   var scriptEl = document.currentScript;
-  var ICONS = scriptEl ? scriptEl.src.replace(/site\.js(\?.*)?$/, 'icons.svg') : 'assets/icons.svg';
+  // Keep site.js's ?v= stamp on the sprite URL so a deploy never pairs new markup with a cached sprite.
+  var ICONS = scriptEl ? scriptEl.src.replace(/site\.js(\?[^#]*)?$/, function (_, query) { return 'icons.svg' + (query || ''); }) : 'assets/icons.svg';
 
   function icon(name, cls) {
     return '<svg class="' + (cls || 'icon') + '" aria-hidden="true"><use href="' + ICONS + '#' + name + '"/></svg>';
