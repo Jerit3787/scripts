@@ -525,6 +525,7 @@ HOST
 #!/usr/bin/env bash
 printf 'SETUP_ARGS:%s\n' "$*" >> "$CAIDPS_TEST_LOG"
 printf 'SETUP_TUNNEL:%s\n' "${CAIDPS_TUNNEL_MODE:-}" >> "$CAIDPS_TEST_LOG"
+[ "${CAIDPS_TEST_SETUP_FAIL:-0}" = "1" ] && exit 1
 exit 0
 SETUP
     chmod +x "$dest/scripts/"*.sh
@@ -605,6 +606,68 @@ test_install_image_refuses_downgrade() {
   assert_log_not_contains "HOST_BUNDLE:install" "image install downgrade: does not merge"
 }
 
+test_install_image_persists_a_ghcr_mirror() {
+  new_case install-image-mirror
+  make_stubs
+  make_image_stubs
+  CAIDPS_GHCR_TOKEN='ghp_secret' CAIDPS_GHCR_USER='Jerit3787' CAIDPS_APP_IMAGE='ghcr.io/example/caidps-app' \
+    CAIDPS_INSTALL_DIR="$CASE_DIR/install" \
+    run_script "$INSTALL_IMAGE" --non-interactive --profile production --run containers
+  assert_rc 0 "image install mirror: exits 0"
+  assert_log_contains "DOCKER:pull ghcr.io/example/caidps-app:latest" "image install mirror: pulls the mirror"
+  assert_log_contains "SETUP_ARGS:--image-only --run containers" "image install mirror: hands off"
+  if grep -q '^CAIDPS_APP_IMAGE=ghcr.io/example/caidps-app$' "$CASE_DIR/install/deploy/.env" 2>/dev/null && \
+      grep -q '^CAIDPS_EVAL_IMAGE=ghcr.io/example/caidps-eval$' "$CASE_DIR/install/deploy/.env" 2>/dev/null; then
+    ok "image install mirror: persists the image repositories"
+  else
+    not_ok "image install mirror: persists the image repositories"
+  fi
+}
+
+test_install_image_restores_latest_after_setup_failure() {
+  new_case install-image-rollback
+  make_stubs
+  make_image_stubs
+  CAIDPS_GHCR_TOKEN='ghp_secret' CAIDPS_GHCR_USER='Jerit3787' CAIDPS_TEST_SETUP_FAIL=1 \
+    CAIDPS_INSTALL_DIR="$CASE_DIR/install" \
+    run_script "$INSTALL_IMAGE" --non-interactive --profile production --run containers
+  assert_rc 1 "image install rollback: exits 1"
+  assert_out_contains "restored caidps-app:latest" "image install rollback: says it restored latest"
+  assert_log_contains "DOCKER:tag unknown caidps-app:latest" "image install rollback: retags the previous image"
+}
+
+test_install_image_refuses_a_concurrent_update() {
+  new_case install-image-lock
+  make_stubs
+  make_image_stubs
+  mkdir -p "$CASE_DIR/install"
+  if ! command -v flock >/dev/null 2>&1; then
+    ok "image install lock: skipped (flock isn't installed)"
+    return
+  fi
+  ( exec 9>"$CASE_DIR/install/.update.lock"; flock -n 9; sleep 3 ) &
+  lock_pid=$!
+  sleep 0.2
+  CAIDPS_GHCR_TOKEN='ghp_secret' CAIDPS_GHCR_USER='Jerit3787' CAIDPS_INSTALL_DIR="$CASE_DIR/install" \
+    run_script "$INSTALL_IMAGE" --non-interactive --profile production --run containers
+  wait "$lock_pid" 2>/dev/null || true
+  assert_rc 1 "image install lock: exits 1"
+  assert_out_contains "Another CAIDPS update" "image install lock: refuses while a bootstrap holds it"
+  assert_log_not_contains "DOCKER:pull" "image install lock: pulls nothing"
+}
+
+test_install_image_refuses_a_non_ghcr_mirror() {
+  new_case install-image-bad-mirror
+  make_stubs
+  make_image_stubs
+  CAIDPS_GHCR_TOKEN='ghp_secret' CAIDPS_GHCR_USER='Jerit3787' CAIDPS_APP_IMAGE='example.com/caidps-app' \
+    CAIDPS_INSTALL_DIR="$CASE_DIR/install" \
+    run_script "$INSTALL_IMAGE" --non-interactive --profile production --run containers
+  assert_rc 1 "image install bad mirror: exits 1"
+  assert_out_contains "GHCR" "image install bad mirror: says GHCR is required"
+  assert_log_not_contains "DOCKER:pull" "image install bad mirror: pulls nothing"
+}
+
 test_install_image_forwards_tunnel_env() {
   new_case install-image-tunnel
   make_stubs
@@ -637,6 +700,10 @@ test_install_image_fresh
 test_install_image_refuses_checkout
 test_install_image_preserves_state
 test_install_image_refuses_downgrade
+test_install_image_persists_a_ghcr_mirror
+test_install_image_restores_latest_after_setup_failure
+test_install_image_refuses_a_concurrent_update
+test_install_image_refuses_a_non_ghcr_mirror
 test_install_image_forwards_tunnel_env
 
 say ""

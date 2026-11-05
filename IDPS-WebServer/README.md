@@ -62,7 +62,9 @@ installs `node_modules` or builds an image.
 - `CAIDPS_GHCR_TOKEN` needs `read:packages`; it is passed to `docker login` through stdin. If `gh` is
   authenticated, `CAIDPS_GHCR_USER` can be omitted.
 - `CAIDPS_VERSION` pins a fresh install (default `latest`); an existing image-only install refuses a
-  downgrade.
+  downgrade. `CAIDPS_APP_IMAGE` may point at another GHCR `.../caidps-app` repository; the bootstrap
+  derives `.../caidps-eval` and persists both for later updates and evaluations. Other registries are
+  refused.
 - Tunnel settings use the same `CAIDPS_TUNNEL_MODE`/`CAIDPS_TUNNEL_TOKEN`/`CAIDPS_TUNNEL_NAME`/
   `CAIDPS_TUNNEL_DASHBOARD_HOST`/`CAIDPS_TUNNEL_APP_HOST` environment as the container wizard. Token mode
   is unattended; login mode needs a terminal and browser.

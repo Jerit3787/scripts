@@ -197,6 +197,10 @@ version_lt() {
 if [ -d "$INSTALL_DIR/.git" ]; then
   refuse "Refusing to install into the repository checkout at $INSTALL_DIR. Use the repo-based setup.sh, or choose another CAIDPS_INSTALL_DIR."
 fi
+case "$APP_IMAGE_REPO" in
+  ghcr.io/*/caidps-app) ;;
+  *) die "Image-only installs use a GHCR .../caidps-app repository, not $APP_IMAGE_REPO" ;;
+esac
 
 ensure_docker
 ensure_python
@@ -205,6 +209,11 @@ login
 
 as_root mkdir -p "$INSTALL_DIR"
 as_root chown "$OWNER:$OWNER_GROUP" "$INSTALL_DIR"
+# One writer at a time: hostd takes this same lock for dashboard updates.
+exec 9>"$INSTALL_DIR/.update.lock"
+if command -v flock >/dev/null 2>&1; then
+  flock -n 9 || die "Another CAIDPS update is running; try again when it finishes"
+fi
 
 if [ -f "$INSTALL_DIR/VERSION" ] && [ "$VERSION" != "latest" ]; then
   old="$(tr -d '[:space:]' < "$INSTALL_DIR/VERSION")"
@@ -228,6 +237,7 @@ if [ -f "$INSTALL_DIR/VERSION" ]; then
   fi
 fi
 
+previous="$(as_root docker image inspect --format '{{.Id}}' caidps-app:latest 2>/dev/null || true)"
 as_root docker tag "$IMAGE_REF" caidps-app:latest || die "Could not tag caidps-app:latest"
 
 STAGING="$(mktemp -d "${TMPDIR:-/tmp}/caidps-host-bundle.XXXXXX")" || die "Could not create a staging directory"
@@ -242,10 +252,28 @@ BUNDLE_CONTAINER=""
 as_root bash "$STAGING/scripts/host_bundle.sh" install "$STAGING" "$INSTALL_DIR" || die "Host bundle merge failed"
 as_root chown -R "$OWNER:$OWNER_GROUP" "$INSTALL_DIR"
 
+# A GHCR mirror override must survive into hostd's update/evaluation pulls; without this the host would
+# install from the mirror once and then silently fall back to the default GHCR repository.
+if [ "$APP_IMAGE_REPO" != "ghcr.io/jerit3787/caidps-app" ] || [ -n "${CAIDPS_EVAL_IMAGE:-}" ]; then
+  eval_repo="${CAIDPS_EVAL_IMAGE:-${APP_IMAGE_REPO%/caidps-app}/caidps-eval}"
+  mkdir -p "$INSTALL_DIR/deploy"
+  {
+    grep -q '^CAIDPS_APP_IMAGE=' "$INSTALL_DIR/deploy/.env" 2>/dev/null \
+      || printf 'CAIDPS_APP_IMAGE=%s\n' "$APP_IMAGE_REPO"
+    grep -q '^CAIDPS_EVAL_IMAGE=' "$INSTALL_DIR/deploy/.env" 2>/dev/null \
+      || printf 'CAIDPS_EVAL_IMAGE=%s\n' "$eval_repo"
+  } >> "$INSTALL_DIR/deploy/.env"
+  as_root chown "$OWNER:$OWNER_GROUP" "$INSTALL_DIR/deploy/.env"
+fi
+
 [ -x "$INSTALL_DIR/scripts/setup.sh" ] || die "The merged host bundle has no executable scripts/setup.sh"
 say "Starting the image-only host setup..."
 run_setup "$@"
 setup_rc=$?
+if [ "$setup_rc" -ne 0 ] && [ -n "$previous" ]; then
+  as_root docker tag "$previous" caidps-app:latest >/dev/null 2>&1 || true
+  say "Setup failed; restored caidps-app:latest to the previous image."
+fi
 # setup.sh runs hostd as the checkout owner; if this bootstrap ran as root (sudo), the files it wrote are
 # root-owned. Hand them over and restart hostd so it can read deploy/.env and write managed files.
 as_root chown -R "$OWNER:$OWNER_GROUP" "$INSTALL_DIR" 2>/dev/null || true
