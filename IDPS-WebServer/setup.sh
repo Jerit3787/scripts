@@ -7,10 +7,48 @@
 #   curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/setup.sh | bash -s -- <setup.sh options>
 #
 # Environment:
-#   GITHUB_TOKEN / GH_TOKEN   token for a private clone (used for this run only; never written to disk)
-#   CAIDPS_NON_INTERACTIVE=1  take every default without prompting
+#   GITHUB_TOKEN / GH_TOKEN   token for a private clone/update (used for this run only)
+#   CAIDPS_NON_INTERACTIVE=1  take every default without prompting (containers by default)
+#   CI=1                      same as CAIDPS_NON_INTERACTIVE
+#   CAIDPS_INSTALL_DIR=PATH   installation directory (default /opt/caidps on Linux)
+#   CAIDPS_BRANCH=NAME        branch to install (default fyp2-real-detection)
 #
 set -u
+
+usage() {
+  cat <<'EOF'
+Usage:
+  curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/setup.sh | bash
+  curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/setup.sh | bash -s -- [options]
+
+Modes:
+  (interactive)                    The app's setup wizard asks every question.
+  --non-interactive --profile production --run containers
+                                   Current production default: Docker Compose stack.
+  --non-interactive --profile production --run systemd --install-local
+                                   systemd install with local PostgreSQL and Redis.
+
+Wrapper environment:
+  GITHUB_TOKEN / GH_TOKEN          Token for the private repository (this run only).
+  CAIDPS_NON_INTERACTIVE=1         No wrapper prompts; defaults to the container stack.
+  CI=1                             Same as CAIDPS_NON_INTERACTIVE.
+  CAIDPS_INSTALL_DIR=PATH          Install path (default /opt/caidps on Linux).
+  CAIDPS_BRANCH=NAME               Branch (default fyp2-real-detection).
+
+App setup.sh options passed through:
+  --run containers|systemd         Production run mode.
+  --install-local                  Install PostgreSQL and Redis locally (systemd).
+  --postgres-url / --redis-url     Use existing production datastores (systemd).
+  --project NAME                   Compose project name (containers).
+  --tls acme|files|internal|none   HTTPS in the container stack.
+  --upstream URL                   Protect an existing app instead of Juice Shop.
+  --restore ARCHIVE                Restore a backup into a new container stack.
+  --no-link-cli                    Do not install the global caidps command.
+  --dry-run                        Resolve the configuration without changing anything.
+
+Note: --install-all belongs to scripts/serve.sh, not scripts/setup.sh.
+EOF
+}
 
 # Everything runs from main(), called on the last line: if a `curl | bash` download is cut
 # short, bash never reaches the call and nothing half-runs.
@@ -22,8 +60,6 @@ if [ -t 1 ]; then
   DIM="\033[2m"
   GREEN="\033[32m"
   YELLOW="\033[33m"
-  BLUE="\033[34m"
-  MAGENTA="\033[35m"
   CYAN="\033[36m"
   RED="\033[31m"
   RESET="\033[0m"
@@ -32,8 +68,6 @@ else
   DIM=""
   GREEN=""
   YELLOW=""
-  BLUE=""
-  MAGENTA=""
   CYAN=""
   RED=""
   RESET=""
@@ -66,27 +100,113 @@ if { true < /dev/tty; } 2>/dev/null; then
   HAS_TTY=1
 fi
 
-# TTY-safe input reader that works even when the script is piped from curl
+# Wrapper-level flags. Everything else is forwarded verbatim to the app's setup.sh.
+NON_INTERACTIVE=0
+LINK_CLI=1
+SYSTEMD_MODE=0
+DRY_RUN=0
+NO_TUI=0
+RUN_MODE=""
+RUN_MODE_SET=0
+SYSTEMD_HINTS=0
+
+has_arg() {
+  local needle="$1"
+  shift
+  local arg
+  for arg in "$@"; do
+    [ "$arg" = "$needle" ] && return 0
+  done
+  return 1
+}
+
+if has_arg --help "$@" || has_arg -h "$@"; then
+  usage
+  exit 0
+fi
+
+if has_arg --install-all "$@"; then
+  {
+    echo "[error] --install-all is a scripts/serve.sh flag, not a scripts/setup.sh option." >&2
+    echo "" >&2
+    echo "Use one of these instead:" >&2
+    echo "  Container install (default):  ... | bash -s -- --non-interactive --profile production --run containers" >&2
+    echo "  systemd with local DBs:       ... | bash -s -- --non-interactive --profile production --run systemd --install-local" >&2
+    echo "  After a host install:         cd <install-dir> && ./scripts/serve.sh --install-all" >&2
+  }
+  exit 2
+fi
+
+if has_arg --no-link-cli "$@"; then
+  LINK_CLI=0
+fi
+if has_arg --link-cli "$@"; then
+  LINK_CLI=1
+fi
+if has_arg --dry-run "$@"; then
+  DRY_RUN=1
+fi
+if has_arg --no-tui "$@" || has_arg --cli "$@"; then
+  NO_TUI=1
+fi
+if [ -n "${CAIDPS_NON_INTERACTIVE:-}" ] || [ -n "${CI:-}" ] || [ "$HAS_TTY" -eq 0 ] || has_arg --non-interactive "$@"; then
+  NON_INTERACTIVE=1
+fi
+
+prev_arg=""
+for arg in "$@"; do
+  if [ "$prev_arg" = "--run" ]; then
+    RUN_MODE="$arg"
+  fi
+  prev_arg="$arg"
+done
+if has_arg --run "$@"; then
+  RUN_MODE_SET=1
+fi
+for flag in --install-local --postgres-url --redis-url; do
+  if has_arg "$flag" "$@"; then
+    SYSTEMD_HINTS=1
+  fi
+done
+
+# Translate unattended intent into the current app's flags. Explicit user flags win.
+WIZARD_ARGS=("$@")
+if [ "$NON_INTERACTIVE" -eq 1 ]; then
+  if ! has_arg --non-interactive "${WIZARD_ARGS[@]+"${WIZARD_ARGS[@]}"}"; then
+    WIZARD_ARGS+=(--non-interactive)
+  fi
+  if ! has_arg --profile "${WIZARD_ARGS[@]+"${WIZARD_ARGS[@]}"}"; then
+    WIZARD_ARGS+=(--profile production)
+  fi
+  if [ "$RUN_MODE_SET" -eq 0 ] && [ "$SYSTEMD_HINTS" -eq 0 ]; then
+    WIZARD_ARGS+=(--run containers)
+    RUN_MODE="containers"
+  fi
+  if [ "$RUN_MODE" = "systemd" ] || { [ "$RUN_MODE_SET" -eq 0 ] && [ "$SYSTEMD_HINTS" -eq 1 ]; }; then
+    SYSTEMD_MODE=1
+  fi
+fi
+
+# TTY-safe input reader that works even when the script is piped from curl.
 read_tty() {
   local prompt_str="$1"
   local var_name="$2"
   local is_secret="${3:-0}"
   local input_val=""
 
-  if [ "$HAS_TTY" -eq 1 ] && [ -z "${CAIDPS_NON_INTERACTIVE:-}" ] && [ -z "${CI:-}" ]; then
-    if [ "$is_secret" -eq 1 ]; then
-      read -r -s -p "$prompt_str" input_val < /dev/tty
-      echo "" > /dev/tty 2>/dev/null || echo ""
-    else
-      read -r -p "$prompt_str" input_val < /dev/tty
-    fi
+  if [ "$NON_INTERACTIVE" -eq 1 ] || [ "$HAS_TTY" -ne 1 ]; then
+    [ "$is_secret" -eq 1 ] && echo ""
+    eval "$var_name=\"\""
+    return 0
+  fi
+
+  if [ "$is_secret" -eq 1 ]; then
+    # shellcheck disable=SC2034  # read through eval below
+    read -r -s -p "$prompt_str" input_val < /dev/tty
+    echo "" > /dev/tty 2>/dev/null || echo ""
   else
-    if [ "$is_secret" -eq 1 ]; then
-      read -r -s -p "$prompt_str" input_val 2>/dev/null || true
-      echo ""
-    else
-      read -r -p "$prompt_str" input_val 2>/dev/null || true
-    fi
+    # shellcheck disable=SC2034  # read through eval below
+    read -r -p "$prompt_str" input_val < /dev/tty
   fi
   eval "$var_name=\"\$input_val\""
 }
@@ -144,7 +264,7 @@ ensure_whiptail() {
 }
 
 USE_TUI=0
-if [ "$HAS_TTY" -eq 1 ] && [ -z "${CAIDPS_NON_INTERACTIVE:-}" ] && [ -z "${CI:-}" ]; then
+if [ "$NON_INTERACTIVE" -eq 0 ] && [ "$NO_TUI" -eq 0 ] && [ "$HAS_TTY" -eq 1 ] && [ -t 1 ]; then
   if ensure_whiptail; then
     USE_TUI=1
   fi
@@ -238,6 +358,182 @@ ensure_lfs() {
   if command -v git-lfs >/dev/null 2>&1 || git lfs version >/dev/null 2>&1; then
     git lfs install 2>/dev/null || true
     echo -e "${GREEN}[setup] git-lfs installed successfully!${RESET}"
+  fi
+}
+
+as_root() {
+  if [ "$(id -u)" -eq 0 ]; then
+    "$@"
+  elif command -v sudo >/dev/null 2>&1; then
+    sudo "$@"
+  else
+    "$@"
+  fi
+}
+
+run_as_user() {
+  if [ "$(id -u)" -eq 0 ] && [ "$ACTUAL_USER" != "root" ]; then
+    if command -v runuser >/dev/null 2>&1; then
+      runuser -u "$ACTUAL_USER" -- "$@"
+    elif command -v sudo >/dev/null 2>&1; then
+      sudo -u "$ACTUAL_USER" -H "$@"
+    else
+      "$@"
+    fi
+  else
+    "$@"
+  fi
+}
+
+ensure_python() {
+  if command -v python3 >/dev/null 2>&1 \
+      && python3 -c 'import venv' >/dev/null 2>&1 \
+      && python3 -m pip --version >/dev/null 2>&1; then
+    return 0
+  fi
+  echo -e "${YELLOW}[setup] Installing Python 3, venv and pip (needed by the setup wizard and host updater)...${RESET}"
+  case "$(uname -s)" in
+    Linux)
+      if command -v apt-get >/dev/null 2>&1; then
+        as_root apt-get update -y && as_root apt-get install -y python3 python3-venv python3-pip
+      elif command -v dnf >/dev/null 2>&1; then
+        as_root dnf install -y python3 python3-pip
+      elif command -v yum >/dev/null 2>&1; then
+        as_root yum install -y python3 python3-pip
+      elif command -v pacman >/dev/null 2>&1; then
+        as_root pacman -Sy --noconfirm python python-pip
+      elif command -v apk >/dev/null 2>&1; then
+        as_root apk add --no-cache python3 py3-pip
+      else
+        echo -e "${RED}[error] Unsupported Linux package manager. Install python3, python3-venv and pip manually.${RESET}" >&2
+        return 1
+      fi
+      ;;
+    Darwin)
+      if command -v brew >/dev/null 2>&1; then
+        brew install python || true
+      fi
+      ;;
+    *)
+      echo -e "${RED}[error] Unsupported operating system: $(uname -s)${RESET}" >&2
+      return 1
+      ;;
+  esac
+  if command -v python3 >/dev/null 2>&1 \
+      && python3 -c 'import venv' >/dev/null 2>&1 \
+      && python3 -m pip --version >/dev/null 2>&1; then
+    echo -e "${GREEN}[setup] Python 3, venv and pip are ready.${RESET}"
+    return 0
+  fi
+  echo -e "${RED}[error] Python 3 with venv and pip could not be installed automatically.${RESET}" >&2
+  return 1
+}
+
+ensure_docker() {
+  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    if ! docker info >/dev/null 2>&1 && command -v systemctl >/dev/null 2>&1; then
+      as_root systemctl enable --now docker >/dev/null 2>&1 || true
+    fi
+    return 0
+  fi
+  echo -e "${YELLOW}[setup] Installing Docker Engine and the Compose plugin...${RESET}"
+  case "$(uname -s)" in
+    Linux)
+      if command -v curl >/dev/null 2>&1; then
+        curl -fsSL https://get.docker.com | { if [ "$(id -u)" -eq 0 ]; then sh; else as_root sh; fi; } || return 1
+      else
+        echo -e "${RED}[error] curl is required to install Docker.${RESET}" >&2
+        return 1
+      fi
+      if command -v systemctl >/dev/null 2>&1; then
+        as_root systemctl enable --now docker 2>/dev/null || true
+      fi
+      if [ -n "${ACTUAL_USER}" ] && [ "$ACTUAL_USER" != "root" ]; then
+        as_root usermod -aG docker "$ACTUAL_USER" 2>/dev/null || true
+      fi
+      ;;
+    Darwin)
+      if command -v brew >/dev/null 2>&1; then
+        brew install --cask docker || true
+      fi
+      ;;
+    *)
+      echo -e "${RED}[error] Unsupported operating system: $(uname -s)${RESET}" >&2
+      return 1
+      ;;
+  esac
+  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    echo -e "${GREEN}[setup] Docker and Compose are ready.${RESET}"
+    return 0
+  fi
+  echo -e "${RED}[error] Docker with the Compose plugin could not be installed automatically.${RESET}" >&2
+  return 1
+}
+
+ensure_node() {
+  if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+    node --version >/dev/null 2>&1 || true
+    npm --version >/dev/null 2>&1 || true
+    return 0
+  fi
+  echo -e "${YELLOW}[setup] Installing Node.js and npm for the dashboard build...${RESET}"
+  local node_channel="${CAIDPS_NODE_CHANNEL:-lts}"
+  case "$(uname -s)" in
+    Linux)
+      if command -v apt-get >/dev/null 2>&1; then
+        curl -fsSL "https://deb.nodesource.com/setup_${node_channel}.x" | { if [ "$(id -u)" -eq 0 ]; then bash -; else as_root bash -; fi; } || true
+        as_root apt-get install -y nodejs
+      elif command -v dnf >/dev/null 2>&1; then
+        curl -fsSL "https://rpm.nodesource.com/setup_${node_channel}.x" | { if [ "$(id -u)" -eq 0 ]; then bash -; else as_root bash -; fi; } || true
+        as_root dnf install -y nodejs
+      elif command -v yum >/dev/null 2>&1; then
+        curl -fsSL "https://rpm.nodesource.com/setup_${node_channel}.x" | { if [ "$(id -u)" -eq 0 ]; then bash -; else as_root bash -; fi; } || true
+        as_root yum install -y nodejs
+      elif command -v pacman >/dev/null 2>&1; then
+        as_root pacman -Sy --noconfirm nodejs npm
+      elif command -v apk >/dev/null 2>&1; then
+        as_root apk add --no-cache nodejs npm
+      else
+        echo -e "${RED}[error] Unsupported Linux package manager. Install Node.js and npm manually.${RESET}" >&2
+        return 1
+      fi
+      ;;
+    Darwin)
+      if command -v brew >/dev/null 2>&1; then
+        brew install node || true
+      fi
+      ;;
+    *)
+      echo -e "${RED}[error] Unsupported operating system: $(uname -s)${RESET}" >&2
+      return 1
+      ;;
+  esac
+  if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+    echo -e "${GREEN}[setup] Node.js and npm are ready.${RESET}"
+    return 0
+  fi
+  echo -e "${RED}[error] Node.js and npm could not be installed automatically.${RESET}" >&2
+  return 1
+}
+
+ensure_backend_venv() {
+  local dir="$1"
+  local venv="$dir/prototype/backend/venv"
+  local py="$venv/bin/python"
+
+  if [ -x "$py" ] && "$py" -c 'import sqlalchemy, psycopg2, alembic, fastapi, pydantic' >/dev/null 2>&1; then
+    return 0
+  fi
+  echo -e "${YELLOW}[setup] Preparing the backend Python environment...${RESET}"
+  if [ ! -x "$py" ]; then
+    run_as_user python3 -m venv "$venv" || return 1
+  fi
+  run_as_user "$py" -m pip install --upgrade pip >/dev/null 2>&1 || true
+  run_as_user "$py" -m pip install -r "$dir/prototype/backend/requirements.txt" || return 1
+  if [ -f "$dir/prototype/backend/requirements-ml.txt" ]; then
+    if ! run_as_user "$py" -m pip install -r "$dir/prototype/backend/requirements-ml.txt"; then
+      echo -e "${YELLOW}[setup] ML requirements could not be installed yet; the service will retry them on first start.${RESET}" >&2
+    fi
   fi
 }
 
@@ -339,8 +635,8 @@ configure_permissions() {
     fi
   fi
 
-  # Link caidps CLI globally to PATH
-  if [ -f "${dir}/scripts/caidps" ]; then
+  # Link caidps CLI globally to PATH (unless the caller passed --no-link-cli)
+  if [ "$LINK_CLI" -eq 1 ] && [ -f "${dir}/scripts/caidps" ]; then
     if [ -w "/usr/local/bin" ]; then
       ln -sf "${dir}/scripts/caidps" /usr/local/bin/caidps 2>/dev/null || true
     elif command -v sudo >/dev/null 2>&1; then
@@ -367,16 +663,19 @@ forget_token() {
   unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
 }
 
-# Step 0: Ensure git and git-lfs are installed
+# Step 0: Ensure git, git-lfs and Python are installed
 ensure_git || exit 1
 ensure_lfs || true
+ensure_python || exit 1
 
 REPO_URL="https://github.com/Jerit3787/IDPS-WebServer.git"
-REPO_BRANCH="fyp2-real-detection"
-TARGET_DIR=""
+REPO_BRANCH="${CAIDPS_BRANCH:-fyp2-real-detection}"
+TARGET_DIR="${CAIDPS_INSTALL_DIR:-}"
 
 # Check if we are already inside an IDPS-WebServer repository
-if [ -f "./scripts/serve.sh" ] && [ -d "./prototype/backend" ]; then
+if [ -n "$TARGET_DIR" ]; then
+  echo -e "${GREEN}[info] Using installation directory from CAIDPS_INSTALL_DIR: ${TARGET_DIR}${RESET}"
+elif [ -f "./scripts/serve.sh" ] && [ -d "./prototype/backend" ]; then
   echo -e "${GREEN}[info] Detected existing CAIDPS repository in current directory: $(pwd)${RESET}"
   TARGET_DIR="$(pwd)"
 else
@@ -419,6 +718,13 @@ else
       TARGET_DIR="${input_dir:-$RECOMMENDED_DIR}"
     fi
   fi
+fi
+
+# Refuse to clone into an existing non-empty directory that is not a CAIDPS checkout.
+if [ -d "$TARGET_DIR" ] && [ ! -f "$TARGET_DIR/scripts/serve.sh" ] && [ -n "$(ls -A "$TARGET_DIR" 2>/dev/null)" ]; then
+  echo -e "${RED}[error] ${TARGET_DIR} exists and is not an empty directory or a CAIDPS checkout.${RESET}" >&2
+  echo "Choose another path, empty it, or remove it before re-running." >&2
+  exit 1
 fi
 
 # Ensure target installation directory exists and is writable by ACTUAL_USER
@@ -518,6 +824,11 @@ else
 
   # Check 4: Private repository authentication wizard
   if [ "$CLONE_SUCCESS" -eq 0 ]; then
+    if [ "$NON_INTERACTIVE" -eq 1 ]; then
+      echo -e "${RED}[error] The repository is private and no non-interactive GitHub credentials worked.${RESET}" >&2
+      echo "Set GITHUB_TOKEN or GH_TOKEN (on the bash side of the pipe), or authenticate gh first." >&2
+      exit 1
+    fi
     auth_choice=""
     if [ "$USE_TUI" -eq 1 ]; then
       auth_choice=$(whiptail --title "GitHub Authentication" --backtitle "CAIDPS Installer" \
@@ -633,21 +944,65 @@ forget_token
 # Configure all permissions across the repository and docker group
 configure_permissions "$TARGET_DIR"
 
+# Explicit non-interactive systemd needs the host prerequisites the app's non-interactive
+# setup path skips: Docker for the target, Node/npm for the dashboard, and the backend venv.
+if [ "$NON_INTERACTIVE" -eq 1 ] && [ "$SYSTEMD_MODE" -eq 1 ] && [ "$DRY_RUN" -eq 0 ]; then
+  ensure_docker || exit 1
+  ensure_node || exit 1
+  ensure_backend_venv "$TARGET_DIR" || exit 1
+  configure_permissions "$TARGET_DIR"
+fi
+
 echo -e "${GREEN}[setup] Repository ready at ${TARGET_DIR}.${RESET}"
-echo -e "${GREEN}[setup] Starting interactive setup wizard...${RESET}"
+if [ "$NON_INTERACTIVE" -eq 1 ]; then
+  echo -e "${GREEN}[setup] Starting unattended setup...${RESET}"
+else
+  echo -e "${GREEN}[setup] Starting interactive setup wizard...${RESET}"
+fi
 echo ""
 
-# Launch the interactive wizard inside the repository
-if [ -f "./scripts/setup.sh" ]; then
-  if [ "$HAS_TTY" -eq 1 ] && [ -t 1 ]; then
-    exec ./scripts/setup.sh "$@" < /dev/tty
-  else
-    exec ./scripts/setup.sh "$@"
-  fi
-else
+# Launch the app wizard inside the repository.
+if [ ! -f "./scripts/setup.sh" ]; then
   echo -e "${RED}[error] ./scripts/setup.sh not found in $(pwd)${RESET}" >&2
   exit 1
 fi
+
+if [ "$HAS_TTY" -eq 1 ] && [ -t 1 ] && [ "$NON_INTERACTIVE" -eq 0 ]; then
+  ./scripts/setup.sh "${WIZARD_ARGS[@]+"${WIZARD_ARGS[@]}"}" < /dev/tty
+else
+  ./scripts/setup.sh "${WIZARD_ARGS[@]+"${WIZARD_ARGS[@]}"}"
+fi
+rc=$?
+if [ "$rc" -ne 0 ]; then
+  exit "$rc"
+fi
+
+# The app's non-interactive systemd path only configures the server; install and start it.
+if [ "$NON_INTERACTIVE" -eq 1 ] && [ "$SYSTEMD_MODE" -eq 1 ] && [ "$DRY_RUN" -eq 0 ]; then
+  echo -e "${GREEN}[setup] Installing and starting the CAIDPS systemd service...${RESET}"
+  ./scripts/service.sh install
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    exit "$rc"
+  fi
+fi
+
+# service.sh install links the CLI unconditionally; honor --no-link-cli after it runs.
+if [ "$LINK_CLI" -eq 0 ]; then
+  rm -f "${ACTUAL_HOME}/.local/bin/caidps" 2>/dev/null || true
+  if [ -w /usr/local/bin ] || [ ! -e /usr/local/bin/caidps ]; then
+    rm -f /usr/local/bin/caidps 2>/dev/null || true
+  else
+    as_root rm -f /usr/local/bin/caidps 2>/dev/null || true
+  fi
+fi
+
+if [ "$DRY_RUN" -eq 1 ]; then
+  echo -e "${GREEN}[setup] Dry run complete; nothing was started.${RESET}"
+else
+  echo -e "${GREEN}[setup] CAIDPS installation complete.${RESET}"
+fi
+exit 0
 }
 
 main "$@"
