@@ -139,8 +139,8 @@ login() {
   if [ "$OWNER" != "root" ]; then
     [ -n "$OWNER_HOME" ] || die "Could not find the home directory of $OWNER"
     as_root mkdir -p "$OWNER_HOME/.docker"
-    printf '%s' "$TOKEN" | as_root docker login ghcr.io -u "$GHCR_USER" --password-stdin \
-      --config "$OWNER_HOME/.docker" >/dev/null || die "GHCR login failed for $OWNER"
+    printf '%s' "$TOKEN" | as_root docker --config "$OWNER_HOME/.docker" login ghcr.io -u "$GHCR_USER" \
+      --password-stdin >/dev/null || die "GHCR login failed for $OWNER"
     as_root chown -R "$OWNER:$OWNER_GROUP" "$OWNER_HOME/.docker"
   fi
 }
