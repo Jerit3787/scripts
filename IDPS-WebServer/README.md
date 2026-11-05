@@ -172,3 +172,13 @@ Notes:
 | `--project NAME` | compose project to use when `deploy/.env` is missing |
 
 An install the `caidps` command points at is found automatically.
+
+## Tests
+
+Run the stub-driven tests in a disposable Linux container (they do not touch the host):
+
+```bash
+docker run --rm -v "$PWD:/repo" -w /repo python:3.12-slim bash IDPS-WebServer/tests/run-tests.sh
+```
+
+Also run `bash -n` and `shellcheck -S warning` on the scripts before pushing.
