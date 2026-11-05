@@ -16,7 +16,8 @@ The wrapper:
 - clones or fast-forwards `Jerit3787/IDPS-WebServer` (branch `fyp2-real-detection` by default) into
   `/opt/caidps` on Linux (or the path you choose);
 - installs Git, Git LFS, Python 3, venv and pip;
-- pulls the DistilBERT weights with Git LFS and warns if it could not;
+- lets the app's setup pull the released container image for the checkout's version (or build it locally,
+  fetching the DistilBERT weights, only when no image is available);
 - configures ownership, permissions and the global `caidps` command;
 - hands over to the app's `scripts/setup.sh`.
 
@@ -125,6 +126,15 @@ Wrapper environment:
 | `CAIDPS_BRANCH=NAME` | branch to install (default `fyp2-real-detection`) |
 | `CAIDPS_NODE_CHANNEL` | NodeSource channel used by the systemd prerequisite installer (default `lts`) |
 | `CAIDPS_TUNNEL_TOKEN` | Cloudflare Tunnel token passed to the container install |
+| `CAIDPS_GHCR_TOKEN` | PAT with `read:packages` for the private app image (optional; a failed pull builds locally) |
+| `CAIDPS_GHCR_USER` | GitHub account for `CAIDPS_GHCR_TOKEN` (default: the `gh` CLI's account) |
+
+Container installs pull `ghcr.io/jerit3787/caidps-app:<version>` for the checkout's `APP_VERSION`, verify
+its version and architecture, and use it; `--local-build` forces the build path, as does a dirty checkout,
+another architecture, or a failed pull. The private GHCR packages need `CAIDPS_GHCR_TOKEN` for an
+unattended pull (the installer stores the login for the checkout owner, whose account the host updater
+runs as). Without it, the install still completes by building. The same applies to dashboard updates and
+evaluations, which pull the released `caidps-eval` image first.
 
 **Private access:** the application repository is private. On a fresh server, authenticate with one of:
 

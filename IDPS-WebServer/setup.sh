@@ -30,6 +30,9 @@ Modes:
 
 Wrapper environment:
   GITHUB_TOKEN / GH_TOKEN          Token for the private repository (this run only).
+  CAIDPS_GHCR_TOKEN                PAT with read:packages for the private container image (optional; an
+                                   anonymous pull is tried and the image is built if it fails).
+  CAIDPS_GHCR_USER                 GitHub account for CAIDPS_GHCR_TOKEN (default: the gh CLI's account).
   CAIDPS_NON_INTERACTIVE=1         No wrapper prompts; defaults to the container stack.
   CI=1                             Same as CAIDPS_NON_INTERACTIVE.
   CAIDPS_INSTALL_DIR=PATH          Install path (default /opt/caidps on Linux).
@@ -43,6 +46,7 @@ App setup.sh options passed through:
   --tls acme|files|internal|none   HTTPS in the container stack.
   --upstream URL                   Protect an existing app instead of Juice Shop.
   --restore ARCHIVE                Restore a backup into a new container stack.
+  --local-build                    Build the container image here instead of pulling the released image.
   --no-link-cli                    Do not install the global caidps command.
   --dry-run                        Resolve the configuration without installing packages, changing permissions, linking the CLI, or starting services (the checkout may still be cloned/updated).
 
@@ -1013,20 +1017,12 @@ if [ "$DRY_RUN" -eq 0 ] && command -v gh >/dev/null 2>&1; then
   gh auth setup-git 2>/dev/null || true
 fi
 
-# Ensure git-lfs model weights are pulled
+# The app setup pulls the model weights only when it needs to build the image (a released image already
+# contains them), and evaluations fetch them on demand. Keep the clone token configured until that setup
+# exits so a fallback build can authenticate; it is never written to .git/config.
 if [ "$DRY_RUN" -eq 1 ]; then
-  echo -e "${YELLOW}[lfs] --dry-run: skipping the model-weight download.${RESET}"
-elif command -v git-lfs >/dev/null 2>&1 || git lfs version >/dev/null 2>&1; then
-  echo -e "${GREEN}[lfs] Checking Git LFS model weights...${RESET}"
-  git lfs install --local 2>/dev/null || true
-  if ! GIT_TERMINAL_PROMPT=0 git lfs pull; then
-    echo -e "${YELLOW}[lfs] Could not download the model weights (Git LFS). The DistilBERT tier stays off" \
-            "until you run: cd ${TARGET_DIR} && git lfs pull${RESET}" >&2
-  fi
-else
-  echo -e "${YELLOW}[lfs] git-lfs is not installed: the DistilBERT model weights were not downloaded.${RESET}" >&2
+  echo -e "${YELLOW}[lfs] --dry-run: model weights are fetched only for a local build or an evaluation.${RESET}"
 fi
-forget_token
 
 # Configure all permissions across the repository and docker group
 if [ "$DRY_RUN" -eq 0 ]; then
