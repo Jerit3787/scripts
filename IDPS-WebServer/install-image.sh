@@ -102,16 +102,35 @@ ensure_docker() {
 }
 
 ensure_python() {
-  command -v python3 >/dev/null 2>&1 && return 0
-  wait_apt
-  if command -v apt-get >/dev/null 2>&1; then
-    as_root apt-get update -q && as_root apt-get install -y python3 python3-venv
-  elif command -v dnf >/dev/null 2>&1; then
-    as_root dnf install -y python3 python3-virtualenv
-  elif command -v apk >/dev/null 2>&1; then
-    as_root apk add --no-cache python3 py3-virtualenv
+  if ! command -v python3 >/dev/null 2>&1; then
+    wait_apt
+    if command -v apt-get >/dev/null 2>&1; then
+      as_root apt-get update -q && as_root apt-get install -y python3 python3-venv
+    elif command -v dnf >/dev/null 2>&1; then
+      as_root dnf install -y python3 python3-virtualenv
+    elif command -v apk >/dev/null 2>&1; then
+      as_root apk add --no-cache python3 py3-virtualenv
+    fi
+    command -v python3 >/dev/null 2>&1 || die "Python 3 is required for the host updater"
   fi
-  command -v python3 >/dev/null 2>&1 || die "Python 3 is required for the host updater"
+  # Ubuntu's python3 is separate from python3-venv; hostd creates its own venv.
+  if ! python3 -c 'import ensurepip' >/dev/null 2>&1; then
+    wait_apt
+    local minor
+    minor="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+    if command -v apt-get >/dev/null 2>&1; then
+      as_root apt-get update -q
+      as_root apt-get install -y python3-venv "python3${minor}-venv" \
+        || as_root apt-get install -y python3-venv \
+        || die "python3-venv is needed for the host updater (apt install python3${minor}-venv)"
+    elif command -v dnf >/dev/null 2>&1; then
+      as_root dnf install -y python3-virtualenv || true
+    elif command -v apk >/dev/null 2>&1; then
+      as_root apk add --no-cache py3-virtualenv || true
+    fi
+    python3 -c 'import ensurepip' >/dev/null 2>&1 \
+      || die "Python's venv/ensurepip module is missing — install python3${minor}-venv"
+  fi
 }
 
 ensure_cloudflared() {
