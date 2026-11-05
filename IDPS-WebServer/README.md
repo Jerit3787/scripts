@@ -83,9 +83,10 @@ curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/setup.sh \
       --redis-url 'redis://:...@cache:6379/0'
 ```
 
-For explicit systemd installs the wrapper also installs Docker, Node/npm and the backend Python
-environment (the app's non-interactive systemd path otherwise only writes the configuration), then runs
-`scripts/setup.sh`, installs and starts `caidps.service`, and installs the nightly backup timer.
+For non-interactive explicit systemd installs the wrapper also installs Docker, Node/npm and the backend
+Python environment (the app's non-interactive systemd path otherwise only writes the configuration), then
+runs `scripts/setup.sh`, installs and starts `caidps.service`, and installs the nightly backup timer.
+Interactive systemd installs let the app wizard install its own prerequisites and start the service.
 
 The non-interactive systemd path uses the app's default target, ports and data mode. For a custom target,
 ports or a Cloudflare Tunnel on systemd, use the interactive wizard (or reconfigure with
@@ -99,6 +100,9 @@ installer exits with an explanation. For a host/development install after setup,
 ```bash
 cd /opt/caidps && ./scripts/serve.sh --install-all
 ```
+
+`--dry-run` resolves the app's configuration and prints the commands. It may still clone or fast-forward the
+checkout, but it does not install packages, change permissions, link the CLI, or start services.
 
 Wrapper environment:
 
@@ -127,7 +131,9 @@ An authenticated GitHub CLI (`gh auth login`) or the interactive PAT/SSH wizard 
 token is used for that run only and is not written into `.git/config`.
 
 **Updates:** re-run the installer to fast-forward the checkout and re-run the wizard. Container installs
-can also update from the dashboard through `caidps-hostd`.
+can also update from the dashboard through `caidps-hostd`. An interactive update warns and continues with
+the existing checkout if the fast-forward fails; an unattended update exits instead of configuring stale or
+wrong-branch code.
 
 **First sign-in:** CAIDPS has no built-in accounts. The first start prints a one-time setup code; enter it
 in the dashboard to create the first SOC Lead.
@@ -139,6 +145,9 @@ curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/reset.sh | bash
 curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/reset.sh | bash -s -- --yes
 ```
 
+The reset targets Linux servers (systemd/Docker Compose); the process teardown uses `/proc`, so macOS
+installs are not a supported reset target.
+
 The script asks you to type `reset`, then:
 
 - **Container installs:** removes `caidps-hostd`, the backup timer, and the Compose stack including its
@@ -149,6 +158,9 @@ The script asks you to type `reset`, then:
   the app's local database.
 - **Never touched:** external PostgreSQL/Redis, dashboard-managed Cloudflare tunnels, and unrelated Docker
   workloads. The script reports these as manual actions.
+- **Scope:** the reset removes every CAIDPS install it finds (the default paths, the CLI symlink target and
+  `--dir`). Do not run it on a host with another CAIDPS install you want to keep; stop that install and
+  remove its unit/containers separately first.
 
 Notes:
 
@@ -160,16 +172,18 @@ Notes:
 - Docker images and packages remain unless `--purge-packages` is used. `--purge-packages` deletes **all**
   Docker images, containers and volumes on the machine, and uninstalls cloudflared, Node.js, Docker and
   whiptail. Local PostgreSQL/Redis packages are kept.
-- Host-managed Cloudflare credentials live in the installing user's `~/.cloudflared` (and root's, if used);
-  the reset removes those directories. That directory can also hold other cloudflared logins, so move them
-  first on a shared server. A token-managed tunnel must be deleted in Cloudflare Zero Trust.
+- Host-managed Cloudflare credentials live in the installing user's `~/.cloudflared`, root's
+  `~/.cloudflared`, and `/etc/cloudflared`; the reset removes those directories. They can also hold other
+  cloudflared logins, so move them first on a shared server. A token-managed tunnel must be deleted in
+  Cloudflare Zero Trust.
 
 | Option | Effect |
 |---|---|
 | `--yes` (or `CAIDPS_RESET_CONFIRM=yes`) | no prompt — required when there is no terminal |
 | `--purge-packages` | also remove cloudflared, Node.js, Docker (and **all** Docker data), whiptail |
 | `--dir PATH` | also remove a CAIDPS install outside the default locations |
-| `--project NAME` | compose project to use when `deploy/.env` is missing |
+| `--project NAME` | compose project when `deploy/.env` is missing or unreadable; a value that conflicts with the recorded project aborts |
+| `--kind containers\|systemd` | force the install kind when the metadata is missing or unreadable |
 
 An install the `caidps` command points at is found automatically.
 
@@ -180,5 +194,8 @@ Run the stub-driven tests in a disposable Linux container (they do not touch the
 ```bash
 docker run --rm -v "$PWD:/repo" -w /repo python:3.12-slim bash IDPS-WebServer/tests/run-tests.sh
 ```
+
+The harness refuses to run outside a container unless `CAIDPS_TEST_ALLOW_HOST=1` is set, because the reset
+tests exercise paths under `/opt`, `/etc/systemd` and `/usr/local`.
 
 Also run `bash -n` and `shellcheck -S warning` on the scripts before pushing.
