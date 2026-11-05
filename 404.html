@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Page not found | scripts.danplace.tech</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1D2125" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <script>
+    try {
+      var t = localStorage.getItem('ds-theme');
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="topnav">
+    <div class="topnav-inner">
+      <a class="product" href="/" aria-label="Scripts catalog home">
+        <span class="product-logo" aria-hidden="true"><svg class="icon"><use href="/assets/icons.svg#i-terminal"/></svg></span>
+        <span>Scripts <span class="product-site">danplace.tech</span></span>
+      </a>
+      <nav aria-label="Primary">
+        <ul class="nav-items">
+          <li><a class="nav-item" href="/">Catalog</a></li>
+          <li><a class="nav-item" href="/IDPS-WebServer/">CAIDPS</a></li>
+        </ul>
+      </nav>
+      <div class="topnav-end">
+        <a class="btn btn-subtle btn-icon" href="https://github.com/Jerit3787/scripts" target="_blank" rel="noopener" aria-label="Scripts repository on GitHub" title="Scripts repository on GitHub">
+          <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-github"/></svg>
+        </a>
+        <button class="btn btn-subtle btn-icon theme-toggle" type="button" data-theme-toggle aria-label="Switch theme">
+          <svg class="icon icon-moon" aria-hidden="true"><use href="/assets/icons.svg#i-moon"/></svg>
+          <svg class="icon icon-sun" aria-hidden="true"><use href="/assets/icons.svg#i-sun"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="page">
+    <div class="not-found">
+      <span class="empty-state-art" aria-hidden="true"><svg class="icon-24"><use href="/assets/icons.svg#i-file"/></svg></span>
+      <h1 class="page-title">There's no script here</h1>
+      <p>
+        <code id="missing-path">This page</code> doesn't exist. Scripts live in their project's folder, such as
+        <code>/IDPS-WebServer/setup.sh</code>, and there are no aliases at the root.
+      </p>
+      <div class="btn-group">
+        <a class="btn btn-primary" href="/">Browse the catalog</a>
+        <a class="btn" href="/IDPS-WebServer/">CAIDPS installer</a>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer-inner">
+      <p>Plain bash, served as-is. Review the source before running it.</p>
+      <ul class="footer-links">
+        <li><a href="https://github.com/Jerit3787/scripts" target="_blank" rel="noopener">GitHub</a></li>
+        <li><a href="https://danplace.tech" target="_blank" rel="noopener">danplace.tech</a></li>
+      </ul>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById('missing-path').textContent = location.pathname;
+  </script>
+  <script src="/assets/site.js"></script>
+</body>
+</html>

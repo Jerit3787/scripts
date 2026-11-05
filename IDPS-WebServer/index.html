@@ -5,12 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CAIDPS installer | scripts.danplace.tech</title>
   <meta name="description" content="Installer, interactive setup wizard, production modes and factory reset for CAIDPS (Context-Aware Intrusion Detection & Prevention System).">
+  <link rel="canonical" href="https://scripts.danplace.tech/IDPS-WebServer/">
   <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1D2125" media="(prefers-color-scheme: dark)">
   <meta property="og:title" content="CAIDPS | scripts.danplace.tech">
   <meta property="og:description" content="Installer, setup wizard, production modes and factory reset for CAIDPS.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://scripts.danplace.tech/IDPS-WebServer/">
+  <meta name="twitter:card" content="summary">
   <link rel="icon" href="logo.svg" type="image/svg+xml">
   <script>
     try {
@@ -91,10 +93,10 @@
 
             <div class="tabs" data-tabs>
               <div class="tab-list" role="tablist" aria-label="Install commands">
-                <button class="tab" type="button" role="tab" id="tab-interactive" aria-controls="panel-interactive" aria-selected="true">Interactive</button>
-                <button class="tab" type="button" role="tab" id="tab-unattended" aria-controls="panel-unattended" aria-selected="false" tabindex="-1">Unattended</button>
-                <button class="tab" type="button" role="tab" id="tab-image" aria-controls="panel-image" aria-selected="false" tabindex="-1">Image only</button>
-                <button class="tab" type="button" role="tab" id="tab-reset" aria-controls="panel-reset" aria-selected="false" tabindex="-1">Factory reset</button>
+                <button class="tab" type="button" role="tab" id="tab-interactive" data-hash="interactive" aria-controls="panel-interactive" aria-selected="true">Interactive</button>
+                <button class="tab" type="button" role="tab" id="tab-unattended" data-hash="unattended" aria-controls="panel-unattended" aria-selected="false" tabindex="-1">Unattended</button>
+                <button class="tab" type="button" role="tab" id="tab-image" data-hash="image-only" aria-controls="panel-image" aria-selected="false" tabindex="-1">Image only</button>
+                <button class="tab" type="button" role="tab" id="tab-reset" data-hash="reset" aria-controls="panel-reset" aria-selected="false" tabindex="-1">Factory reset</button>
               </div>
 
               <div class="tab-panel" role="tabpanel" id="panel-interactive" aria-labelledby="tab-interactive">
@@ -106,7 +108,22 @@
                     <span class="copy-label">Copy</span>
                   </button>
                 </div>
-                <p>Installs or updates CAIDPS, then runs the setup wizard in your terminal.</p>
+                <p>Clones or fast-forwards the app into <code>/opt/caidps</code>, installs Git, Git LFS and Python, then runs the setup wizard in your terminal.</p>
+
+                <div class="alt-command">
+                  <div class="alt-command-head">
+                    <h3 class="heading-xsmall">Prefer to read it first?</h3>
+                    <a class="link-button" href="setup.sh" data-view-script data-source="https://github.com/Jerit3787/scripts/blob/main/IDPS-WebServer/setup.sh" data-description="Installer and setup wizard">Open setup.sh in the viewer</a>
+                  </div>
+                  <div class="code-block">
+                    <pre><span class="prompt" aria-hidden="true">$</span><code id="cmd-download">curl -fsSLO https://scripts.danplace.tech/IDPS-WebServer/setup.sh &amp;&amp; less setup.sh &amp;&amp; bash setup.sh</code></pre>
+                    <button class="btn" type="button" data-copy-target="cmd-download" aria-label="Copy download-first command">
+                      <svg class="icon icon-copy" aria-hidden="true"><use href="../assets/icons.svg#i-copy"/></svg>
+                      <svg class="icon icon-check" aria-hidden="true"><use href="../assets/icons.svg#i-check"/></svg>
+                      <span class="copy-label">Copy</span>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div class="tab-panel" role="tabpanel" id="panel-unattended" aria-labelledby="tab-unattended" hidden>
@@ -118,7 +135,7 @@
                     <span class="copy-label">Copy</span>
                   </button>
                 </div>
-                <p>Production install of the Docker Compose stack with no prompts. This is the recommended setup for servers.</p>
+                <p>The recommended setup for servers: the production Docker Compose stack (PostgreSQL, Redis, backend, proxy and Juice Shop) with no prompts. It installs the <code>caidps-hostd</code> updater and the nightly backup timer, then prints the one-time setup code. To change the upstream, add HTTPS or restore a backup, see <a href="#reference">installer flags</a>.</p>
               </div>
 
               <div class="tab-panel" role="tabpanel" id="panel-image" aria-labelledby="tab-image" hidden>
@@ -133,7 +150,7 @@
                     <span class="copy-label">Copy</span>
                   </button>
                 </div>
-                <p>For a production server that shouldn't keep a git checkout, LFS weights, submodules or a backend venv. It pulls the released app image and its host bundle. Replace the token placeholder before running.</p>
+                <p>For a production server that shouldn't keep a git checkout, LFS weights, submodules or a backend venv. It pulls the released app image and its host bundle, and dashboard updates then pull new images instead of building. Replace the token placeholder before running.</p>
               </div>
 
               <div class="tab-panel" role="tabpanel" id="panel-reset" aria-labelledby="tab-reset" hidden>
@@ -141,7 +158,7 @@
                   <svg class="icon-24" aria-hidden="true"><use href="../assets/icons.svg#i-warning"/></svg>
                   <div class="section-message-body">
                     <h3 class="heading-small">This deletes local CAIDPS data</h3>
-                    <p>The reset removes the database, volumes and local data, and asks you to type <code>reset</code> first. Back up with <code>scripts/backup.sh create</code> before you run it.</p>
+                    <p>The checkout is deleted too, including its <code>backups/</code> folder and <code>deploy/.env</code>. Run <code>scripts/backup.sh create</code> and copy the archive off the server first.</p>
                   </div>
                 </div>
                 <div class="code-block">
@@ -152,12 +169,44 @@
                     <span class="copy-label">Copy</span>
                   </button>
                 </div>
+                <p>You'll be asked to type <code>reset</code>. It removes every CAIDPS install it finds, so stop any install you want to keep before running it.</p>
+                <div class="outcomes">
+                  <div class="outcome outcome-remove">
+                    <h4><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#i-trash"/></svg>Removed</h4>
+                    <ul>
+                      <li>The Compose stack with its named volumes: the database and Redis and Caddy data</li>
+                      <li><code>caidps-hostd</code>, <code>caidps.service</code> and the backup timer</li>
+                      <li>The checkout, the <code>caidps</code> command and host-managed tunnel credentials</li>
+                      <li>The local <code>caidps</code> PostgreSQL database and role, on systemd installs</li>
+                    </ul>
+                  </div>
+                  <div class="outcome outcome-keep">
+                    <h4><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#i-check"/></svg>Left in place</h4>
+                    <ul>
+                      <li>External PostgreSQL and Redis</li>
+                      <li>Dashboard and token-managed Cloudflare tunnels</li>
+                      <li>Unrelated Docker workloads</li>
+                      <li>Docker images and packages, unless you pass <code>--purge-packages</code></li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        <section class="stack-tight" aria-labelledby="features-title">
+        <section class="section-message" aria-labelledby="private-title">
+          <svg class="icon-24" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg>
+          <div class="section-message-body">
+            <h2 id="private-title" class="heading-small">The app repository is private</h2>
+            <p>On a fresh server, give bash a GitHub token (not curl), sign in with <code>gh auth login</code>, or use the wizard's PAT or SSH prompt. The token is used for that run only and isn't written into <code>.git/config</code>.</p>
+            <div class="section-message-actions">
+              <button class="link-button" type="button" data-copy="curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/setup.sh | GITHUB_TOKEN=... bash" data-copy-flag="Token command copied">Copy the command with a token</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="stack-tight" id="features" aria-labelledby="features-title">
           <div>
             <h2 id="features-title" class="section-heading">What the wizard sets up</h2>
             <p class="section-intro">Everything below is configured by the installer. Nothing needs to be prepared by hand.</p>
@@ -167,7 +216,7 @@
               <span class="icon-tile icon-tile-large tile-orange" aria-hidden="true"><svg class="icon"><use href="../assets/icons.svg#i-bolt"/></svg></span>
               <div>
                 <h3 class="heading-xsmall">Bootstrap</h3>
-                <p>Clones <code>Jerit3787/IDPS-WebServer</code> on <code>fyp2-real-detection</code>, installs Git LFS and Python with venv, verifies the DistilBERT weights, and lets the app initialize the submodules it needs.</p>
+                <p>Clones <code>Jerit3787/IDPS-WebServer</code> on <code>fyp2-real-detection</code>, installs Git LFS and Python with venv, and pulls the released container image, building locally only when no image is available.</p>
               </div>
             </div>
             <div class="feature">
@@ -202,21 +251,13 @@
               <span class="icon-tile icon-tile-large tile-green" aria-hidden="true"><svg class="icon"><use href="../assets/icons.svg#i-refresh"/></svg></span>
               <div>
                 <h3 class="heading-xsmall">Updates and backups</h3>
-                <p>Container installs get the <code>caidps-hostd</code> updater and a nightly backup timer. systemd installs get the <code>caidps</code> service and the same 03:17 backup timer.</p>
+                <p>Container installs get the <code>caidps-hostd</code> updater, so you can update from the dashboard, and a nightly backup timer. systemd installs get the <code>caidps</code> service and the same 03:17 backup timer.</p>
               </div>
-            </div>
-          </div>
-
-          <div class="section-message">
-            <svg class="icon-24" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg>
-            <div class="section-message-body">
-              <h3 class="heading-small">Tunnel name already taken?</h3>
-              <p>If a Cloudflare Login name already belongs to a dashboard-managed tunnel, the wizard asks for another name. To reuse that tunnel, choose the token option instead.</p>
             </div>
           </div>
         </section>
 
-        <section class="stack-tight" aria-labelledby="walkthrough-title">
+        <section class="stack-tight" id="walkthrough" aria-labelledby="walkthrough-title">
           <div>
             <h2 id="walkthrough-title" class="section-heading">Wizard walkthrough</h2>
             <p class="section-intro">The questions the interactive install asks, with the default answer highlighted.</p>
@@ -272,10 +313,111 @@
           <pre class="log" aria-label="Example installer output"><span class="ok">[setup]</span> host updater (caidps-hostd) and nightly backup timer installed
 <span class="ok">[setup]</span> CAIDPS running. Dashboard: http://&lt;server&gt;:8000
 <span class="warn">[setup]</span> Setup code for the first SOC Lead account: ••••••</pre>
+          <p class="subtle">CAIDPS has no built-in accounts. Open the dashboard and enter the one-time setup code to create the first SOC Lead.</p>
+        </section>
+
+        <section class="card" id="reference" aria-labelledby="reference-title">
+          <div class="card-body">
+            <h2 id="reference-title" class="section-heading">Reference</h2>
+            <p class="section-intro">Pass flags after <code>bash -s --</code>, and environment variables before <code>bash</code>.</p>
+
+            <div class="tabs" data-tabs>
+              <div class="tab-list" role="tablist" aria-label="Reference">
+                <button class="tab" type="button" role="tab" id="tab-ref-flags" data-hash="flags" aria-controls="panel-ref-flags" aria-selected="true">Installer flags</button>
+                <button class="tab" type="button" role="tab" id="tab-ref-env" data-hash="environment" aria-controls="panel-ref-env" aria-selected="false" tabindex="-1">Environment</button>
+                <button class="tab" type="button" role="tab" id="tab-ref-reset" data-hash="reset-options" aria-controls="panel-ref-reset" aria-selected="false" tabindex="-1">Reset options</button>
+              </div>
+
+              <div class="tab-panel" role="tabpanel" id="panel-ref-flags" aria-labelledby="tab-ref-flags">
+                <div class="table-wrap">
+                  <table class="table">
+                    <thead><tr><th scope="col">Flag</th><th scope="col">Effect</th></tr></thead>
+                    <tbody>
+                      <tr><td><code>--non-interactive --profile production --run containers</code></td><td>The unattended production stack. Same as <code>CAIDPS_NON_INTERACTIVE=1</code>.</td></tr>
+                      <tr><td><code>--upstream URL</code></td><td>Protect an app that's already running instead of Juice Shop in the stack.</td></tr>
+                      <tr><td><code>--project NAME</code></td><td>Compose project for a second install on the same machine.</td></tr>
+                      <tr><td><code>--tls acme --dashboard-domain HOST --acme-email EMAIL</code></td><td>HTTPS in the stack with Let's Encrypt. Your own certificate files or Caddy's internal CA also work.</td></tr>
+                      <tr><td><code>--restore PATH</code></td><td>Restore a <code>scripts/backup.sh create</code> archive into a new stack.</td></tr>
+                      <tr><td><code>--run systemd --install-local</code></td><td>systemd service with PostgreSQL and Redis installed on this server.</td></tr>
+                      <tr><td><code>--postgres-url URL --redis-url URL</code></td><td>systemd service using an existing PostgreSQL and Redis.</td></tr>
+                      <tr><td><code>--local-build</code></td><td>Build the app image here instead of pulling the release.</td></tr>
+                      <tr><td><code>--dry-run</code></td><td>Print the resolved configuration and commands. It may still clone or fast-forward the checkout.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="tab-panel" role="tabpanel" id="panel-ref-env" aria-labelledby="tab-ref-env" hidden>
+                <div class="table-wrap">
+                  <table class="table">
+                    <thead><tr><th scope="col">Variable</th><th scope="col">Effect</th></tr></thead>
+                    <tbody>
+                      <tr><td><code>GITHUB_TOKEN</code>, <code>GH_TOKEN</code></td><td>Token for the private clone or update, for this run only.</td></tr>
+                      <tr><td><code>CAIDPS_NON_INTERACTIVE=1</code></td><td>Skip prompts and install the production container stack. <code>CI=1</code> does the same.</td></tr>
+                      <tr><td><code>CAIDPS_INSTALL_DIR</code></td><td>Install path. <span class="default">Default <code>/opt/caidps</code> on Linux.</span></td></tr>
+                      <tr><td><code>CAIDPS_BRANCH</code></td><td>Branch to install. <span class="default">Default <code>fyp2-real-detection</code>.</span></td></tr>
+                      <tr><td><code>CAIDPS_TUNNEL_TOKEN</code></td><td>Cloudflare Tunnel token for a container install.</td></tr>
+                      <tr><td><code>CAIDPS_GHCR_TOKEN</code></td><td>PAT with <code>read:packages</code> to pull the private app image. Without it, a failed pull builds locally.</td></tr>
+                      <tr><td><code>CAIDPS_GHCR_USER</code></td><td>GitHub account for the token. <span class="default">Default: the <code>gh</code> CLI's account.</span></td></tr>
+                      <tr><td><code>CAIDPS_NODE_CHANNEL</code></td><td>NodeSource channel for systemd prerequisites. <span class="default">Default <code>lts</code>.</span></td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="tab-panel" role="tabpanel" id="panel-ref-reset" aria-labelledby="tab-ref-reset" hidden>
+                <div class="table-wrap">
+                  <table class="table">
+                    <thead><tr><th scope="col">Option</th><th scope="col">Effect</th></tr></thead>
+                    <tbody>
+                      <tr><td><code>--yes</code></td><td>No prompt. Required when there's no terminal. <code>CAIDPS_RESET_CONFIRM=yes</code> does the same.</td></tr>
+                      <tr><td><code>--purge-packages</code></td><td>Also uninstall cloudflared, Node.js, Docker and whiptail, and delete <strong>all</strong> Docker images, containers and volumes on the machine.</td></tr>
+                      <tr><td><code>--dir PATH</code></td><td>Also remove an install outside the default locations.</td></tr>
+                      <tr><td><code>--project NAME</code></td><td>Compose project to use when <code>deploy/.env</code> is missing or unreadable.</td></tr>
+                      <tr><td><code>--kind containers|systemd</code></td><td>Force the install kind when its metadata is missing.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <p class="subtle">Every option, with examples, is in the README.</p>
+            <a class="btn btn-subtle" href="https://github.com/Jerit3787/scripts/blob/main/IDPS-WebServer/README.md#options-and-environment" target="_blank" rel="noopener">
+              Full reference <svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#i-external"/></svg>
+            </a>
+          </div>
         </section>
       </div>
 
       <aside aria-label="Project details">
+        <section class="panel" aria-labelledby="before-title">
+          <h2 id="before-title" class="panel-title">Before you start</h2>
+          <ul class="checklist">
+            <li>
+              <svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#i-check"/></svg>
+              <div>
+                <h3 class="heading-xsmall">A Linux server</h3>
+                <p>Docker Compose or systemd. Reset relies on <code>/proc</code>, so macOS isn't supported.</p>
+              </div>
+            </li>
+            <li>
+              <svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#i-check"/></svg>
+              <div>
+                <h3 class="heading-xsmall">sudo or root</h3>
+                <p>Package and service steps use <code>sudo</code>. Without a terminal, run as root or with passwordless sudo.</p>
+              </div>
+            </li>
+            <li>
+              <svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#i-check"/></svg>
+              <div>
+                <h3 class="heading-xsmall">GitHub access</h3>
+                <p>A token, <code>gh auth login</code>, or an SSH key for the private app repository.</p>
+              </div>
+            </li>
+          </ul>
+        </section>
+
         <section class="panel" aria-labelledby="details-title">
           <h2 id="details-title" class="panel-title">Details</h2>
           <dl class="details">
@@ -283,6 +425,8 @@
             <dd>Docker Compose</dd>
             <dt>Also runs as</dt>
             <dd>systemd service</dd>
+            <dt>Install path</dt>
+            <dd><code>/opt/caidps</code></dd>
             <dt>Branch</dt>
             <dd><code>fyp2-real-detection</code></dd>
             <dt>Dashboard</dt>
@@ -297,12 +441,22 @@
         <section class="panel" aria-labelledby="files-title">
           <h2 id="files-title" class="panel-title">Files</h2>
           <ul class="file-list">
-            <li><a href="setup.sh"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#i-file-code"/></svg><span class="file-name">setup.sh</span><span class="file-meta">Installer</span></a></li>
-            <li><a href="install-image.sh"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#i-file-code"/></svg><span class="file-name">install-image.sh</span><span class="file-meta">Image only</span></a></li>
-            <li><a href="reset.sh"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#i-file-code"/></svg><span class="file-name">reset.sh</span><span class="file-meta">Reset</span></a></li>
+            <li><a href="setup.sh" data-view-script data-source="https://github.com/Jerit3787/scripts/blob/main/IDPS-WebServer/setup.sh" data-description="Installer and setup wizard"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#i-file-code"/></svg><span class="file-name">setup.sh</span><span class="file-meta">Installer</span></a></li>
+            <li><a href="install-image.sh" data-view-script data-source="https://github.com/Jerit3787/scripts/blob/main/IDPS-WebServer/install-image.sh" data-description="Image-only bootstrap"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#i-file-code"/></svg><span class="file-name">install-image.sh</span><span class="file-meta">Image only</span></a></li>
+            <li><a href="reset.sh" data-view-script data-source="https://github.com/Jerit3787/scripts/blob/main/IDPS-WebServer/reset.sh" data-description="Factory reset"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#i-file-code"/></svg><span class="file-name">reset.sh</span><span class="file-meta">Reset</span></a></li>
             <li><a href="https://github.com/Jerit3787/scripts/blob/main/IDPS-WebServer/README.md" target="_blank" rel="noopener"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#i-file"/></svg><span class="file-name">README.md</span><span class="file-meta">Docs</span></a></li>
           </ul>
         </section>
+
+        <nav class="panel toc" aria-labelledby="toc-title">
+          <h2 id="toc-title" class="panel-title">On this page</h2>
+          <ol>
+            <li><a href="#install">Install</a></li>
+            <li><a href="#features">What the wizard sets up</a></li>
+            <li><a href="#walkthrough">Wizard walkthrough</a></li>
+            <li><a href="#reference">Reference</a></li>
+          </ol>
+        </nav>
       </aside>
     </div>
   </main>

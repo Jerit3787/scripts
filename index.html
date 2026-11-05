@@ -12,6 +12,7 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://scripts.danplace.tech/">
   <meta name="twitter:card" content="summary">
+  <link rel="canonical" href="https://scripts.danplace.tech/">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <script>
     try {
@@ -80,9 +81,9 @@
           <svg class="icon-24" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg>
           <div class="section-message-body">
             <h2 id="read-first-title" class="heading-small">Read a script before you pipe it to bash</h2>
-            <p>Every installer here is plain bash served straight from the repository, with no build step. Open the file, check what it changes, then run it.</p>
+            <p>Every installer here is plain bash served straight from the repository, with no build step. Open any script to read it with line numbers and a SHA-256 checksum, then run it.</p>
             <div class="section-message-actions">
-              <a href="IDPS-WebServer/setup.sh">Open setup.sh</a>
+              <a href="IDPS-WebServer/setup.sh" data-view-script data-source="https://github.com/Jerit3787/scripts/blob/main/IDPS-WebServer/setup.sh" data-description="CAIDPS installer and setup wizard">Read setup.sh</a>
               <a href="https://github.com/Jerit3787/scripts" target="_blank" rel="noopener">Browse the source</a>
             </div>
           </div>
@@ -136,7 +137,7 @@
                       <span class="copy-label">Copy</span>
                     </button>
                   </div>
-                  <p>Installs or updates CAIDPS, then walks you through the setup wizard.</p>
+                  <p>Installs or updates CAIDPS, then walks you through the setup wizard. The app repository is private, so a fresh server needs <a href="IDPS-WebServer/#install">GitHub access</a>.</p>
                 </div>
 
                 <div class="tab-panel" role="tabpanel" id="panel-unattended" aria-labelledby="tab-unattended" hidden>
@@ -148,7 +149,7 @@
                       <span class="copy-label">Copy</span>
                     </button>
                   </div>
-                  <p>Production install with the Docker Compose stack and no prompts. For an install without a git checkout, use the <a href="IDPS-WebServer/#install">image-only command</a>.</p>
+                  <p>Production install with the Docker Compose stack and no prompts. For an install without a git checkout, use the <a href="IDPS-WebServer/#image-only">image-only command</a>.</p>
                 </div>
 
                 <div class="tab-panel" role="tabpanel" id="panel-reset" aria-labelledby="tab-reset" hidden>
@@ -160,7 +161,7 @@
                       <span class="copy-label">Copy</span>
                     </button>
                   </div>
-                  <p>Deletes local CAIDPS data, database and volumes after you type <code>reset</code>. Back up first with <code>scripts/backup.sh create</code>.</p>
+                  <p>Deletes local CAIDPS data, database and volumes after you type <code>reset</code>. Back up first with <code>scripts/backup.sh create</code>, and see <a href="IDPS-WebServer/#reset">what it removes</a>.</p>
                 </div>
               </div>
             </div>
@@ -176,9 +177,9 @@
                 </a>
               </div>
               <ul class="file-chips" aria-label="Scripts in this project">
-                <li><a href="IDPS-WebServer/setup.sh">setup.sh</a></li>
-                <li><a href="IDPS-WebServer/install-image.sh">install-image.sh</a></li>
-                <li><a href="IDPS-WebServer/reset.sh">reset.sh</a></li>
+                <li><a href="IDPS-WebServer/setup.sh" data-view-script data-source="https://github.com/Jerit3787/scripts/blob/main/IDPS-WebServer/setup.sh" data-description="CAIDPS installer and setup wizard">setup.sh</a></li>
+                <li><a href="IDPS-WebServer/install-image.sh" data-view-script data-source="https://github.com/Jerit3787/scripts/blob/main/IDPS-WebServer/install-image.sh" data-description="CAIDPS image-only bootstrap">install-image.sh</a></li>
+                <li><a href="IDPS-WebServer/reset.sh" data-view-script data-source="https://github.com/Jerit3787/scripts/blob/main/IDPS-WebServer/reset.sh" data-description="CAIDPS factory reset">reset.sh</a></li>
               </ul>
             </div>
           </article>
@@ -219,7 +220,7 @@
               <span class="icon-tile tile-green" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#i-eye"/></svg></span>
               <div>
                 <h3 class="heading-xsmall">Readable before you run</h3>
-                <p>Every script is plain bash, linted with <code>shellcheck</code> before it ships.</p>
+                <p>Every script is plain bash, linted with <code>shellcheck</code> before it ships. Click a file name to read it here.</p>
               </div>
             </li>
           </ul>

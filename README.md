@@ -39,6 +39,7 @@ Details, current options and environment variables: [`IDPS-WebServer/README.md`]
 ├── .nojekyll              # serve files as-is (no Jekyll)
 ├── favicon.svg            # catalog/project icon
 ├── index.html             # script catalog with copy buttons
+├── 404.html               # not-found page (absolute /assets paths)
 ├── assets/
 │   ├── site.css           # shared Atlassian-style tokens and components (light/dark)
 │   ├── site.js            # theme toggle, tabs, copy-to-clipboard flags
