@@ -10,17 +10,21 @@ there are no aliases at the root.
 
 ## CAIDPS (`IDPS-WebServer/`)
 
-Context-Aware Intrusion Detection & Prevention System: installer, setup wizard and reset.
+Context-Aware Intrusion Detection & Prevention System: installer, setup wizard and factory reset.
 
 ```bash
-# Install (or update) and run the setup wizard
+# Interactive install (or update) and run the setup wizard
 curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/setup.sh | bash
 
-# Remove an installation (asks you to type "reset" first)
+# Unattended production install: Docker Compose stack (recommended)
+curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/setup.sh | CAIDPS_NON_INTERACTIVE=1 bash
+
+# Remove an installation (asks you to type "reset" first; deletes local CAIDPS
+# data/database/volumes, so back up with scripts/backup.sh create before resetting)
 curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/reset.sh | bash
 ```
 
-Details, options and environment variables: [`IDPS-WebServer/README.md`](IDPS-WebServer/README.md).
+Details, current options and environment variables: [`IDPS-WebServer/README.md`](IDPS-WebServer/README.md).
 
 ---
 
@@ -34,7 +38,9 @@ Details, options and environment variables: [`IDPS-WebServer/README.md`](IDPS-We
 └── IDPS-WebServer/
     ├── setup.sh           # CAIDPS installer and setup wizard
     ├── reset.sh           # CAIDPS teardown / factory reset
-    └── README.md
+    ├── README.md
+    └── tests/
+        └── run-tests.sh   # stub-driven bash tests
 ```
 
 ## Adding a project

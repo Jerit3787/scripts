@@ -382,8 +382,11 @@
         </div>
 
         <div class="alt-commands">
+          <div class="alt-chip" onclick="copyText('curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/setup.sh | CAIDPS_NON_INTERACTIVE=1 bash', this)">
+            Production install (containers): curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/setup.sh | CAIDPS_NON_INTERACTIVE=1 bash
+          </div>
           <div class="alt-chip" onclick="copyText('curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/reset.sh | bash', this)">
-            Uninstall / reset: curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/reset.sh | bash
+            Factory reset (deletes local CAIDPS database/volumes): curl -fsSL https://scripts.danplace.tech/IDPS-WebServer/reset.sh | bash
           </div>
         </div>
       </section>
@@ -393,14 +396,14 @@
         <div class="grid">
           <div class="card">
             <div class="card-icon">⚡</div>
-            <h3>Automated Git & Submodules</h3>
-            <p>Clones <code>Jerit3787/IDPS-WebServer</code> (branch <code>fyp2-real-detection</code>), updates submodules, and verifies Git LFS model weights automatically.</p>
+            <h3>Automated Bootstrap</h3>
+            <p>Clones <code>Jerit3787/IDPS-WebServer</code> (branch <code>fyp2-real-detection</code>), installs Git LFS and Python/venv, verifies the DistilBERT weights, and lets the app initialize the submodules it needs.</p>
           </div>
 
           <div class="card">
             <div class="card-icon">🎯</div>
-            <h3>Target Selection</h3>
-            <p>Choose your protected target: OWASP Juice Shop (:3000), VulnBank (:3100), MediVault (:3200), DVNA (:9090), CI/CD Goat (:3000), or bring your own upstream.</p>
+            <h3>Current Install Modes</h3>
+            <p>Production Docker Compose stack (the default) protects Juice Shop in the stack or an existing upstream. A systemd install can also use the host/development targets: VulnBank, MediVault, DVNA and CI/CD Goat.</p>
           </div>
 
           <div class="card">
@@ -411,8 +414,8 @@
 
           <div class="card">
             <div class="card-icon">🌐</div>
-            <h3>Cloudflare Tunnel Integration</h3>
-            <p>One-click Quick Tunnel creates an ephemeral public HTTPS link (*.trycloudflare.com) or connects to your custom domain via Zero Trust token.</p>
+            <h3>Cloudflare Tunnel &amp; HTTPS</h3>
+            <p>Container installs connect a Zero Trust tunnel with a token and can serve HTTPS through Caddy. Host installs also support Quick Tunnels (<code>*.trycloudflare.com</code>) or a named tunnel.</p>
           </div>
 
           <div class="card">
@@ -423,8 +426,8 @@
 
           <div class="card">
             <div class="card-icon">🔄</div>
-            <h3>Self-Healing Services</h3>
-            <p>Built-in process keeper restarts backend and proxy services automatically if interrupted, with unified SIGINT/SIGTERM graceful shutdown.</p>
+            <h3>Updates &amp; Backups</h3>
+            <p>Container installs get the <code>caidps-hostd</code> updater and a nightly backup timer. systemd installs get the <code>caidps</code> service and the same 03:17 backup timer.</p>
           </div>
         </div>
       </section>
@@ -432,15 +435,16 @@
       <section>
         <h2 class="section-title">Interactive Wizard Preview</h2>
         <div class="walkthrough">
-          <div class="wt-dim"># Terminal Interaction Flow</div>
-          <div><span class="wt-highlight">Step 1:</span> Choose Target Web Application [1-6, default: 1] → <span class="wt-green">OWASP Juice Shop</span></div>
-          <div><span class="wt-highlight">Step 2:</span> Choose Ingestion Mode [1-3, default: 1] → <span class="wt-green">Live Proxy Inspection</span></div>
-          <div><span class="wt-highlight">Step 3:</span> Ports [Dashboard: 8000, Proxy: 8081, App: 3000]</div>
-          <div><span class="wt-highlight">Step 4:</span> Cloudflare Tunnel [1-3, default: 1] → <span class="wt-green">Quick Tunnel (*.trycloudflare.com)</span></div>
-          <div><span class="wt-highlight">Step 5:</span> Check &amp; Install Prerequisites → <span class="wt-green">[✓] Python 3.14  [✓] Docker  [✓] Git LFS</span></div>
+          <div class="wt-dim"># Current terminal interaction flow</div>
+          <div><span class="wt-highlight">Step 1:</span> What is this install for? [Production server / Development] → <span class="wt-green">Production server</span></div>
+          <div><span class="wt-highlight">Step 2:</span> How should it run? [Docker Compose (default) / systemd] → <span class="wt-green">Docker Compose</span></div>
+          <div><span class="wt-highlight">Step 3:</span> Which app does CAIDPS protect? [Juice Shop in this stack / existing URL] → <span class="wt-green">Juice Shop</span></div>
+          <div><span class="wt-highlight">Step 4:</span> Cloudflare Tunnel token and HTTPS → <span class="wt-green">optional</span></div>
+          <div><span class="wt-highlight">Step 5:</span> Check &amp; install prerequisites → <span class="wt-green">build and start the stack</span></div>
           <div class="wt-dim">─────────────────────────────────────────────────────────────────</div>
-          <div><span class="wt-yellow">[serve]</span> CAIDPS running. Dashboard: <span class="wt-highlight">http://localhost:8000</span> | Proxy: <span class="wt-highlight">http://localhost:8081</span></div>
-          <div><span class="wt-green">[serve]</span> Public Tunnel: <span class="wt-highlight">https://random-subdomain.trycloudflare.com</span> → proxy (:8081)</div>
+          <div><span class="wt-green">[setup]</span> host updater (<code>caidps-hostd</code>) and nightly backup timer installed</div>
+          <div><span class="wt-green">[setup]</span> CAIDPS running. Dashboard: <span class="wt-highlight">http://&lt;server&gt;:8000</span></div>
+          <div><span class="wt-yellow">[setup]</span> Setup code for the first SOC Lead account: <span class="wt-highlight">••••••</span></div>
         </div>
       </section>
     </main>
