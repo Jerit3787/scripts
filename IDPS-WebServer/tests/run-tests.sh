@@ -479,6 +479,18 @@ test_dry_run_keeps_cli() {
   if [ -L "$CASE_DIR/home/.local/bin/caidps" ]; then ok "dry run: leaves an existing CLI link alone"; else not_ok "dry run: leaves an existing CLI link alone"; fi
 }
 
+test_reset_login_tunnel() {
+  new_case reset-login-tunnel
+  make_stubs
+  make_fake_install "$CASE_DIR/install" containers
+  printf 'CAIDPS_TUNNEL_MODE=login\nCAIDPS_TUNNEL_NAME=my-login-tunnel\n' >> "$CASE_DIR/install/deploy/.env"
+  mkdir -p "$CASE_DIR/install/deploy/cloudflared"
+  printf 'tunnel: 11111111-1111-1111-1111-111111111111\n' > "$CASE_DIR/install/deploy/cloudflared/config.yml"
+  run_script "$RESET" --yes --dir "$CASE_DIR/install"
+  assert_rc 0 "reset login tunnel: exits 0"
+  assert_log_contains "CLOUDFLARED:tunnel delete -f my-login-tunnel" "reset login tunnel: deletes the login-managed named tunnel"
+}
+
 test_help
 test_install_all_rejected
 test_non_interactive_defaults
@@ -493,6 +505,7 @@ test_reset_project_mismatch
 test_reset_missing_env_kind
 test_reset_token_tunnel
 test_reset_named_tunnel
+test_reset_login_tunnel
 test_reset_leftover
 test_dry_run_keeps_cli
 

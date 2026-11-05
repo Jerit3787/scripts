@@ -291,9 +291,17 @@ env_value_nonempty() {   # env_value_nonempty <file> <key>
 }
 
 install_tunnel_name() {
-  local name="" unit="/etc/systemd/system/caidps.service"
+  local d="$1" name="" unit="/etc/systemd/system/caidps.service"
   if as_root test -f "$unit"; then
     name="$(as_root sed -n 's/.*--tunnel-name[ =]\([^ "]*\).*/\1/p' "$unit" | head -n 1)"
+  fi
+  if [ -z "$name" ] && [ -f "$d/deploy/.env" ] && as_root test -r "$d/deploy/.env"; then
+    name="$(as_root sed -n 's/^CAIDPS_TUNNEL_NAME=//p' "$d/deploy/.env" | tail -n 1)"
+    name="${name%\"}"; name="${name#\"}"
+    name="${name%\'}"; name="${name#\'}"
+  fi
+  if [ -z "$name" ] && [ -f "$d/deploy/cloudflared/config.yml" ] && as_root test -r "$d/deploy/cloudflared/config.yml"; then
+    name="$(as_root sed -n 's/^tunnel:[[:space:]]*//p' "$d/deploy/cloudflared/config.yml" | head -n 1)"
   fi
   echo "$name"
 }
@@ -464,9 +472,6 @@ remove_host_tunnel() {
     echo -e "${YELLOW}[reset] The Cloudflare tunnel is token-managed; delete it in Zero Trust.${RESET}" >&2
     return 0
   fi
-  if [ "$kind" = "containers" ]; then
-    return 0
-  fi
   if [ -z "$name" ]; then
     if [ "$is_quick" -eq 1 ]; then
       echo -e "${YELLOW}[reset] This was a Quick Tunnel; there is no named tunnel to delete.${RESET}" >&2
@@ -479,6 +484,8 @@ remove_host_tunnel() {
     echo -e "${CYAN}[3/6] Removing the host-managed Cloudflare Tunnel '${name}' and its credentials...${RESET}"
     as_user cloudflared tunnel cleanup "$name" >/dev/null 2>&1 || true
     as_user cloudflared tunnel delete -f "$name" >/dev/null 2>&1 || true
+  else
+    echo -e "${YELLOW}[reset] cloudflared is not installed; delete the tunnel '${name}' in Cloudflare Zero Trust.${RESET}" >&2
   fi
 }
 
