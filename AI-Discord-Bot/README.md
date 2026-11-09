@@ -208,6 +208,8 @@ stores the registry credential in the installing user's `~/.docker/config.json` 
 
 - Linux server with `sudo` or root (macOS is supported for Docker Desktop installs).
 - Docker Engine with Compose v2; the installer installs it when missing.
+- The published images are `linux/amd64`. ARM hosts can use Docker's amd64 emulation with
+  `DOCKER_DEFAULT_PLATFORM=linux/amd64`, or build the image locally.
 - Git for the full checkout (the image-only installer does not need it).
 - Python 3 on the host **only** to generate the dashboard login; the bot itself runs in the container.
 - A GitHub token or `gh auth login` for the full private checkout.
@@ -299,6 +301,7 @@ works when that account is named.
 | `GHCR login failed` / `pull access denied` | Token has `read:packages`; `GHCR_USER` is the token owner; the package is private. |
 | `The private image ... is not available` | Run with `GHCR_TOKEN` and `GHCR_USER`, or log in with `docker login ghcr.io` first. |
 | `The image host bundle has no docker-compose.yml` | The image predates the host bundle; use a current `:bot`/`:user` build or re-run the full installer. |
+| `no matching manifest for linux/arm64` | The published image is amd64. Set `DOCKER_DEFAULT_PLATFORM=linux/amd64` or build locally. |
 | Dashboard not reachable | `DASHBOARD_HOST_IP` must be an address on the host; open `http://IP:PORT`; check firewall/Tailscale. |
 | `permission denied` on `/var/run/docker.sock` | Re-run so `DOCKER_GID` is detected, or add the user to the `docker` group and log back in. |
 | Settings save fails | The dashboard mounts the host `.env`; check that `./.env` exists and the install user can write it. |

@@ -71,7 +71,9 @@ tmp="$(mktemp "${TMPDIR:-/tmp}/ai-bot-image-install.XXXXXX")" || {
 }
 trap 'rm -f "$tmp"' EXIT
 
-if ! curl -fsSL "$SETUP_URL" -o "$tmp"; then
+# A query string keeps a cached setup.sh from an earlier deploy out of the
+# image-only path.
+if ! curl -fsSL "${SETUP_URL}?v=$(date +%s)" -o "$tmp"; then
   echo "[error] Could not download $SETUP_URL." >&2
   exit 1
 fi
