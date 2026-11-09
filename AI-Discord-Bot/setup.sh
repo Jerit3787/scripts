@@ -824,6 +824,7 @@ print(hash_password(sys.stdin.read().rstrip("\n")))
     rm -f "$archive"
     [ -f "$TARGET_DIR/docker-compose.yml" ] || die "The image host bundle has no docker-compose.yml."
     [ -f "$TARGET_DIR/tools/dashboard_password.py" ] || die "The image host bundle has no credential generator."
+    [ -f "$TARGET_DIR/dashboard_app/auth.py" ] || die "The image host bundle has no dashboard auth module."
     printf '%s\n' "$IMAGE_REF" > "$TARGET_DIR/.image-install"
     chmod +x "$TARGET_DIR/tools/discord-bot" "$TARGET_DIR/tools/install-cli.sh" 2>/dev/null || true
     if [ "$(id -u)" -eq 0 ] && [ "$ACTUAL_USER" != "root" ]; then
