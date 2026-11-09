@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI Discord Bot installer | scripts.danplace.tech</title>
-  <meta name="description" content="One-line installer for the AI Discord Bot: private GHCR images, Docker Compose, password-protected dashboard, generated login and Watchtower updates.">
+  <meta name="description" content="One-line installer for the AI Discord Bot: full checkout or image-only, private GHCR images, Docker Compose, password-protected dashboard, generated login and Watchtower updates.">
   <link rel="canonical" href="https://scripts.danplace.tech/AI-Discord-Bot/">
   <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1D2125" media="(prefers-color-scheme: dark)">
   <meta property="og:title" content="AI Discord Bot | scripts.danplace.tech">
-  <meta property="og:description" content="Installer for a private Discord bot and dashboard with Docker Compose, GHCR and Watchtower.">
+  <meta property="og:description" content="Full-checkout or image-only installer for a private Discord bot and dashboard with Docker Compose, GHCR and Watchtower.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://scripts.danplace.tech/AI-Discord-Bot/">
   <meta name="twitter:card" content="summary">
@@ -71,7 +71,7 @@
         <p class="page-description">
           Install the bot, dashboard and Watchtower from private GHCR images with one command. The
           installer keeps <code>.env</code> and <code>data/</code>, generates the dashboard login and
-          starts the Compose stack with Docker.
+          starts the Compose stack with Docker. Use the image-only bootstrap to skip the git checkout.
         </p>
       </div>
       <div class="btn-group">
@@ -97,6 +97,7 @@
               <div class="tab-list" role="tablist" aria-label="Install commands">
                 <button class="tab" type="button" role="tab" id="tab-interactive" data-hash="interactive" aria-controls="panel-interactive" aria-selected="true">Interactive</button>
                 <button class="tab" type="button" role="tab" id="tab-unattended" data-hash="unattended" aria-controls="panel-unattended" aria-selected="false" tabindex="-1">Unattended</button>
+                <button class="tab" type="button" role="tab" id="tab-image" data-hash="image-only" aria-controls="panel-image" aria-selected="false" tabindex="-1">Image only</button>
                 <button class="tab" type="button" role="tab" id="tab-update" data-hash="update" aria-controls="panel-update" aria-selected="false" tabindex="-1">Update</button>
               </div>
 
@@ -145,12 +146,33 @@
                 <p>No prompts. A fresh unattended install needs the Discord token and API key; the dashboard password is generated and printed once. Set <code>GHCR_TOKEN</code> separately if <code>GITHUB_TOKEN</code> does not have <code>read:packages</code>.</p>
               </div>
 
+              <div class="tab-panel" role="tabpanel" id="panel-image" aria-labelledby="tab-image" hidden>
+                <div class="code-block">
+                  <pre><span class="prompt" aria-hidden="true">$</span><code id="cmd-image">curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/install-image.sh | \
+  GHCR_TOKEN='&lt;read:packages PAT&gt;' \
+  GHCR_USER='&lt;your GitHub username&gt;' \
+  bash</code></pre>
+                  <button class="btn" type="button" data-copy-target="cmd-image" aria-label="Copy image-only install command">
+                    <svg class="icon icon-copy" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-copy"/></svg>
+                    <svg class="icon icon-check" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-check"/></svg>
+                    <span class="copy-label">Copy</span>
+                  </button>
+                </div>
+                <p>Pulls the released image and extracts the Compose file and host tools from <code>/app/host-bundle</code>. It never clones the repository. Re-run to pull a new image; <code>.env</code> and <code>data/</code> are preserved. Python 3 is used only for the dashboard login.</p>
+                <div class="alt-command">
+                  <div class="alt-command-head">
+                    <h3 class="heading-xsmall">Prefer to read it first?</h3>
+                    <a class="link-button" href="install-image.sh" data-view-script data-source="https://github.com/Jerit3787/scripts/blob/main/AI-Discord-Bot/install-image.sh" data-description="AI Discord Bot image-only installer">Open install-image.sh in the viewer</a>
+                  </div>
+                </div>
+              </div>
+
               <div class="tab-panel" role="tabpanel" id="panel-update" aria-labelledby="tab-update" hidden>
                 <div class="code-block">
                   <pre><span class="prompt" aria-hidden="true">$</span><code id="cmd-update">curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | \
   GITHUB_TOKEN='&lt;repo PAT&gt;' bash
 
-# Or update the images without re-running the installer
+# Or update the containers without re-running the installer
 discord-bot update</code></pre>
                   <button class="btn" type="button" data-copy-target="cmd-update" aria-label="Copy update command">
                     <svg class="icon icon-copy" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-copy"/></svg>
@@ -168,7 +190,7 @@ discord-bot update</code></pre>
           <svg class="icon-24" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-info"/></svg>
           <div class="section-message-body">
             <h2 id="private-title" class="heading-small">The repository and image are private</h2>
-            <p>On a fresh server, give bash a GitHub token (not curl), sign in with <code>gh auth login</code>, or use an SSH key. The image pull needs a PAT with <code>read:packages</code>; <code>GHCR_USER</code> is your GitHub username, the account that owns that token. Tokens are used for the run only and are not written into <code>.git/config</code>.</p>
+            <p>On a fresh full install, give bash a GitHub token (not curl), sign in with <code>gh auth login</code>, or use an SSH key. The image pull needs a PAT with <code>read:packages</code>; <code>GHCR_USER</code> is your GitHub username, the account that owns that token. The image-only install needs only the GHCR token. Tokens are used for the run only and are not written into <code>.git/config</code>.</p>
             <div class="section-message-actions">
               <button class="link-button" type="button" data-copy="curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | GITHUB_TOKEN=... GHCR_USER='&lt;your GitHub username&gt;' bash" data-copy-flag="Token command copied">Copy the command with a token</button>
             </div>
@@ -185,7 +207,7 @@ discord-bot update</code></pre>
               <span class="icon-tile icon-tile-large tile-blue" aria-hidden="true"><svg class="icon"><use href="../assets/icons.svg?v=500451243d#i-terminal"/></svg></span>
               <div>
                 <h3 class="heading-xsmall">Private bootstrap</h3>
-                <p>Clones <code>Jerit3787/ai-discord-bot</code>, logs in to GHCR and pulls the <code>:bot</code> or <code>:user</code> image. No Node or Python runtime is needed on the host for the bot.</p>
+                <p>Clones <code>Jerit3787/ai-discord-bot</code>, logs in to GHCR and pulls the <code>:bot</code> or <code>:user</code> image. The image-only path skips the checkout and extracts the host bundle from the image.</p>
               </div>
             </div>
             <div class="feature">
@@ -309,8 +331,9 @@ discord-bot update</code></pre>
                       <tr><td><code>--dashboard-password VALUE</code></td><td>Reset the dashboard password.</td></tr>
                       <tr><td><code>--no-watchtower</code></td><td>Start only the bot and dashboard.</td></tr>
                       <tr><td><code>--no-cli</code></td><td>Do not link the <code>discord-bot</code> command.</td></tr>
-                      <tr><td><code>--no-start</code></td><td>Configure <code>.env</code> and <code>data/</code>, but do not pull or start.</td></tr>
+                      <tr><td><code>--no-start</code></td><td>Configure <code>.env</code> and <code>data/</code>, but do not start. The image-only path still pulls once to extract the host bundle.</td></tr>
                       <tr><td><code>--no-git-update</code></td><td>Use an existing checkout without <code>git fetch</code>/fast-forward.</td></tr>
+                      <tr><td><code>--image-only</code></td><td>Pull the image and extract its host bundle; never clone the repository.</td></tr>
                       <tr><td><code>--dry-run</code></td><td>Print the resolved plan. Nothing is written, pulled or started.</td></tr>
                     </tbody>
                   </table>
@@ -329,6 +352,7 @@ discord-bot update</code></pre>
                       <tr><td><code>AI_DISCORD_BOT_BRANCH</code></td><td>Branch. <span class="default">Default <code>main</code>.</span></td></tr>
                       <tr><td><code>AI_DISCORD_BOT_NON_INTERACTIVE=1</code></td><td>Same as <code>--non-interactive</code>. <code>CI=1</code> also works.</td></tr>
                       <tr><td><code>AI_DISCORD_BOT_NO_GIT_UPDATE=1</code></td><td>Same as <code>--no-git-update</code>.</td></tr>
+                      <tr><td><code>AI_DISCORD_BOT_IMAGE_ONLY=1</code></td><td>Same as <code>--image-only</code>.</td></tr>
                       <tr><td><code>TOKEN_MODE</code></td><td><code>bot</code> or <code>user</code>. <span class="default">Default <code>bot</code>.</span></td></tr>
                       <tr><td><code>DISCORD_TOKEN</code></td><td>Bot token, or user token in user mode. Required on a fresh install.</td></tr>
                       <tr><td><code>OPENAI_API_KEY</code></td><td>OpenAI-compatible API key. Required on a fresh install.</td></tr>
@@ -395,7 +419,7 @@ discord-bot update</code></pre>
               <svg class="icon" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-check"/></svg>
               <div>
                 <h3 class="heading-xsmall">GitHub access</h3>
-                <p>A token, <code>gh auth login</code>, or an SSH key for the private repository, plus a PAT with <code>read:packages</code> for GHCR.</p>
+                <p>A token, <code>gh auth login</code>, or an SSH key for the full checkout, plus a PAT with <code>read:packages</code> for GHCR. The image-only install needs only the GHCR token.</p>
               </div>
             </li>
             <li>
@@ -413,6 +437,8 @@ discord-bot update</code></pre>
           <dl class="details">
             <dt>Runtime</dt>
             <dd>Docker Compose</dd>
+            <dt>Install methods</dt>
+            <dd>Full checkout or image only</dd>
             <dt>Images</dt>
             <dd>Private GHCR</dd>
             <dt>Install path</dt>
@@ -432,6 +458,7 @@ discord-bot update</code></pre>
           <h2 id="files-title" class="panel-title">Files</h2>
           <ul class="file-list">
             <li><a href="setup.sh" data-view-script data-source="https://github.com/Jerit3787/scripts/blob/main/AI-Discord-Bot/setup.sh" data-description="AI Discord Bot installer"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-file-code"/></svg><span class="file-name">setup.sh</span><span class="file-meta">Installer</span></a></li>
+            <li><a href="install-image.sh" data-view-script data-source="https://github.com/Jerit3787/scripts/blob/main/AI-Discord-Bot/install-image.sh" data-description="AI Discord Bot image-only installer"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-file-code"/></svg><span class="file-name">install-image.sh</span><span class="file-meta">Image only</span></a></li>
             <li><a href="https://github.com/Jerit3787/scripts/blob/main/AI-Discord-Bot/README.md" target="_blank" rel="noopener"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-file"/></svg><span class="file-name">README.md</span><span class="file-meta">Docs</span></a></li>
           </ul>
         </section>

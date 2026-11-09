@@ -29,13 +29,40 @@ Existing `data/` and `.env` files are never deleted. Re-run the same command to 
 
 The installer finds an existing checkout from the running `ai-discord-bot` container's Compose
 working directory, the current directory, or the common paths (`/opt/ai-discord-bot`,
-`~/ai-discord-bot`, `~/Desktop/ai-discord-bot`). It refuses to install a second copy at a different
-path because the Compose project and container names are fixed; stop and remove the old stack first
-if you are migrating.
+`~/ai-discord-bot`, `~/Desktop/ai-discord-bot`). Image-only installs are found by their
+`.image-install` marker. It refuses to install a second copy at a different path because the Compose
+project and container names are fixed; stop and remove the old stack first if you are migrating.
 
-The bot repository and its container package are private. A fresh server needs a GitHub token (or
-`gh auth login`) for the checkout and a PAT with `read:packages` for the image. Put tokens on the
-bash side of the pipe, not on the curl side.
+### Image-only install (no repository)
+
+If the server should not keep a git checkout, use the image-only bootstrap:
+
+```bash
+curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/install-image.sh | \
+  GHCR_TOKEN='<PAT with read:packages>' \
+  GHCR_USER='<your GitHub username>' \
+  bash
+```
+
+It pulls the released image, extracts the Compose file and host tools from `/app/host-bundle`, and
+runs the same setup flow. It never clones the repository. Re-run the same command to pull a new image
+and refresh the host bundle; `.env` and `data/` are preserved. The install directory is marked with
+`.image-install` so later runs find it.
+
+The image-only flow still uses Python 3 on the host only to generate the dashboard login; the bot and
+dashboard run from the image. The installer installs Python 3 if it is missing. All options
+(`--dir`, `--dashboard-port`, `--no-start`, `--dry-run`, …) work the same way.
+
+```bash
+# Configure the image-only install but do not start it
+curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/install-image.sh | \
+  GHCR_TOKEN='<PAT with read:packages>' GHCR_USER='<your GitHub username>' \
+  bash -s -- --no-start
+```
+
+The bot repository and its container package are private. A fresh full install needs a GitHub token
+(or `gh auth login`) for the checkout and a PAT with `read:packages` for the image. An image-only
+install needs only the GHCR token. Put tokens on the bash side of the pipe, not on the curl side.
 
 ### Interactive install
 
@@ -98,11 +125,14 @@ curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | \
   bash -s -- --no-git-update
 ```
 
-For image-only updates without re-running the installer:
+For container-only updates without re-running the installer:
 
 ```bash
 discord-bot update
 ```
+
+For an image-only install, re-run `install-image.sh` with the same environment; it pulls the new
+image and refreshes the host bundle while keeping `.env` and `data/`.
 
 ## Dashboard login
 
@@ -178,11 +208,11 @@ stores the registry credential in the installing user's `~/.docker/config.json` 
 
 - Linux server with `sudo` or root (macOS is supported for Docker Desktop installs).
 - Docker Engine with Compose v2; the installer installs it when missing.
-- Git for the checkout.
+- Git for the full checkout (the image-only installer does not need it).
 - Python 3 on the host **only** to generate the dashboard login; the bot itself runs in the container.
-- A GitHub token or `gh auth login` for the private repository.
+- A GitHub token or `gh auth login` for the full private checkout.
 - A classic PAT with `repo` + `read:packages`, or a fine-grained token with Contents read and Packages
-  read, for the private GHCR image.
+  read, for the private GHCR image. The image-only installer needs only `read:packages`.
 - A Tailscale or private LAN address if the dashboard should be reachable from another machine.
 
 ## Options
@@ -200,6 +230,7 @@ stores the registry credential in the installing user's `~/.docker/config.json` 
 | `--no-cli` | Do not link the `discord-bot` command. |
 | `--no-start` | Configure `.env` and `data/`, but do not pull or start. |
 | `--no-git-update` | Use an existing checkout without `git fetch`/fast-forward. |
+| `--image-only` | Pull the image and extract its host bundle; never clone the repository. |
 | `--dry-run` | Print the resolved plan; write, pull and start nothing. |
 | `--help`, `-h` | Show usage. |
 
@@ -221,6 +252,7 @@ curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | \
 | `AI_DISCORD_BOT_BRANCH` | Branch. Default `main`. |
 | `AI_DISCORD_BOT_NON_INTERACTIVE=1` | Same as `--non-interactive`. `CI=1` also works. |
 | `AI_DISCORD_BOT_NO_GIT_UPDATE=1` | Same as `--no-git-update`. |
+| `AI_DISCORD_BOT_IMAGE_ONLY=1` | Same as `--image-only`. |
 | `TOKEN_MODE` | `bot` or `user`. Default `bot`. |
 | `DISCORD_TOKEN` | Bot token, or user token in user mode. Required on a fresh install. |
 | `OPENAI_API_KEY` | OpenAI-compatible API key. Required on a fresh install. |
@@ -266,6 +298,7 @@ works when that account is named.
 | `Could not clone the private repository` | Set `GITHUB_TOKEN`, run `gh auth login`, or add an SSH key. |
 | `GHCR login failed` / `pull access denied` | Token has `read:packages`; `GHCR_USER` is the token owner; the package is private. |
 | `The private image ... is not available` | Run with `GHCR_TOKEN` and `GHCR_USER`, or log in with `docker login ghcr.io` first. |
+| `The image host bundle has no docker-compose.yml` | The image predates the host bundle; use a current `:bot`/`:user` build or re-run the full installer. |
 | Dashboard not reachable | `DASHBOARD_HOST_IP` must be an address on the host; open `http://IP:PORT`; check firewall/Tailscale. |
 | `permission denied` on `/var/run/docker.sock` | Re-run so `DOCKER_GID` is detected, or add the user to the `docker` group and log back in. |
 | Settings save fails | The dashboard mounts the host `.env`; check that `./.env` exists and the install user can write it. |

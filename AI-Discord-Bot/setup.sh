@@ -4,9 +4,11 @@
 #   curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | bash
 #   curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | bash -s -- --non-interactive
 #
-# The wrapper clones or fast-forwards Jerit3787/ai-discord-bot, writes the
-# container settings into .env without discarding existing values, logs in to
-# GHCR, and starts the bot, dashboard and Watchtower with Docker Compose.
+# By default the wrapper clones or fast-forwards Jerit3787/ai-discord-bot.
+# With --image-only it pulls the published image and extracts /app/host-bundle
+# instead. Either way it writes the container settings into .env without
+# discarding existing values, logs in to GHCR, and starts the bot, dashboard
+# and Watchtower with Docker Compose.
 #
 # Environment (all optional except on a fresh unattended install):
 #   GITHUB_TOKEN / GH_TOKEN       private repository token, this run only
@@ -15,6 +17,7 @@
 #   AI_DISCORD_BOT_INSTALL_DIR   install path (default /opt/ai-discord-bot)
 #   AI_DISCORD_BOT_BRANCH        branch (default main)
 #   AI_DISCORD_BOT_NON_INTERACTIVE=1   no prompts; CI=1 does the same
+#   AI_DISCORD_BOT_IMAGE_ONLY=1      pull the image; never clone the repository
 #   TOKEN_MODE=bot|user          Discord token type (default bot)
 #   DISCORD_TOKEN                bot token, or user token in user mode
 #   OPENAI_API_KEY               OpenAI-compatible API key
@@ -52,8 +55,9 @@ Options:
   --dashboard-password VALUE Reset the dashboard password.
   --no-watchtower            Start only the bot and dashboard.
   --no-cli                   Do not link the discord-bot command.
-  --no-start                 Configure .env and data, but do not pull or start.
+  --no-start                 Configure .env and data, but do not start. Image-only still pulls once to extract.
   --no-git-update            Use an existing checkout without git fetch/pull.
+  --image-only               Pull the image and extract its host bundle; never clone the repo.
   --dry-run                  Resolve and print the plan; write and start nothing.
   --help, -h                 Show this help.
 
@@ -65,6 +69,7 @@ Environment:
   AI_DISCORD_BOT_BRANCH      Branch.
   AI_DISCORD_BOT_NON_INTERACTIVE=1  Same as --non-interactive.
   AI_DISCORD_BOT_NO_GIT_UPDATE=1    Same as --no-git-update.
+  AI_DISCORD_BOT_IMAGE_ONLY=1       Same as --image-only.
   CI=1                       Same as --non-interactive.
   TOKEN_MODE, DISCORD_TOKEN, OPENAI_API_KEY, OPENAI_BASE_URL, AI_MODEL
   OWNER_ID, GIPHY_API_KEY, TZ
@@ -72,9 +77,10 @@ Environment:
   DOCKER_GID, DOCKER_CONFIG_FILE, GHCR_OWNER, CONTAINER_TAG
 
 A fresh unattended install needs DISCORD_TOKEN, OPENAI_API_KEY and a GitHub
-token (or an authenticated gh CLI). Pulling the private image needs a PAT with
-read:packages; GITHUB_TOKEN is reused when GHCR_TOKEN is unset. Put tokens on
-the bash side of the pipe, never on the curl side.
+token (or an authenticated gh CLI) for the full checkout. The image-only path
+needs only Docker and a PAT with read:packages; it never clones the repository.
+GITHUB_TOKEN is reused when GHCR_TOKEN is unset. Put tokens on the bash side of
+the pipe, never on the curl side.
 EOF
 }
 
@@ -115,6 +121,11 @@ main() {
   NO_CLI=0
   NO_START=0
   NO_GIT_UPDATE=0
+  IMAGE_ONLY=0
+  IMAGE_PREPARED=0
+  DOCKER_READY=0
+  TAG_SUPPLIED=0
+  [ -n "${CONTAINER_TAG:-}" ] && TAG_SUPPLIED=1
   INSTALL_DIR_ARG=""
   BRANCH_ARG=""
   TOKEN_MODE_ARG=""
@@ -141,6 +152,7 @@ main() {
       --no-cli) NO_CLI=1 ;;
       --no-start) NO_START=1 ;;
       --no-git-update) NO_GIT_UPDATE=1 ;;
+      --image-only) IMAGE_ONLY=1 ;;
       --dry-run) DRY_RUN=1; NON_INTERACTIVE=1 ;;
       *) die "Unknown option: $1 (use --help)" ;;
     esac
@@ -158,6 +170,10 @@ main() {
   case "${AI_DISCORD_BOT_NO_GIT_UPDATE:-}" in
     ""|0|false|FALSE|no|NO) ;;
     *) NO_GIT_UPDATE=1 ;;
+  esac
+  case "${AI_DISCORD_BOT_IMAGE_ONLY:-}" in
+    ""|0|false|FALSE|no|NO) ;;
+    *) IMAGE_ONLY=1 ;;
   esac
   [ "$DRY_RUN" -eq 1 ] && NON_INTERACTIVE=1
 
@@ -368,7 +384,7 @@ main() {
   }
 
   image_exists() {
-    docker_run image inspect "ghcr.io/${GHCR_OWNER}/ai-discord-bot:${CONTAINER_TAG}" >/dev/null 2>&1
+    docker_run image inspect "${IMAGE_REF:-ghcr.io/${GHCR_OWNER}/ai-discord-bot:${CONTAINER_TAG}}" >/dev/null 2>&1
   }
 
   detect_tailscale_ip() {
@@ -751,9 +767,190 @@ print(hash_password(sys.stdin.read().rstrip("\n")))
     [ -n "$DASHBOARD_PASSWORD_HASH" ] && [ -n "$DASHBOARD_SESSION_SECRET" ] && [ -n "$WATCHTOWER_TOKEN" ]
   }
 
+  pre_resolve_image_tag() {
+    local raw_stored stored mode tag
+    raw_stored="$(env_get TOKEN_MODE "")"
+    stored="$(normalize_mode "$raw_stored")"
+    [ -n "$raw_stored" ] || stored=""
+    mode="$(normalize_mode "${TOKEN_MODE_ARG:-${TOKEN_MODE:-${stored:-}}}")"
+    [ "$mode" != "invalid" ] || die "TOKEN_MODE must be bot or user."
+    if [ -z "${TOKEN_MODE_ARG:-}${TOKEN_MODE:-}${stored:-}" ]; then
+      if [ "$NON_INTERACTIVE" -eq 0 ]; then
+        printf '\nToken mode:\n  bot  = dedicated bot account (recommended, ToS-safe)\n  user = your own account as a self-bot (violates Discord ToS, ban risk)\n' > /dev/tty
+        while :; do
+          read_tty "Token mode (bot or user) [bot]: " mode_answer
+          mode="$(normalize_mode "${mode_answer:-bot}")"
+          [ "$mode" != "invalid" ] && break
+          printf 'Please type bot or user.\n' > /dev/tty
+        done
+      else
+        mode="bot"
+      fi
+    fi
+    tag="${CONTAINER_TAG:-$(env_get CONTAINER_TAG "$mode")}"
+    if [ "$TAG_SUPPLIED" -eq 0 ] && [ -n "$stored" ] && [ "$stored" != "$mode" ]; then
+      case "$(env_get CONTAINER_TAG "")" in
+        ""|bot|user|latest) tag="$mode" ;;
+      esac
+    fi
+    validate_value "$tag" || die "CONTAINER_TAG contains a newline."
+    case "$tag" in
+      latest) [ "$mode" = "bot" ] || die "CONTAINER_TAG=latest is a bot-mode image; set CONTAINER_TAG=user or a user-<sha> tag." ;;
+      bot|bot-*) [ "$mode" = "bot" ] || die "TOKEN_MODE=user needs CONTAINER_TAG=user (or user-<sha>), not ${tag}." ;;
+      user|user-*) [ "$mode" = "user" ] || die "TOKEN_MODE=bot needs CONTAINER_TAG=bot (or bot-<sha>), not ${tag}." ;;
+      *) die "CONTAINER_TAG must be bot, user, latest, bot-<sha> or user-<sha>." ;;
+    esac
+    GHCR_OWNER="${GHCR_OWNER:-$(env_get GHCR_OWNER jerit3787)}"
+    GHCR_OWNER="$(printf '%s' "$GHCR_OWNER" | tr '[:upper:]' '[:lower:]')"
+    validate_value "$GHCR_OWNER" || die "GHCR_OWNER contains a newline."
+    [ -n "$GHCR_OWNER" ] || die "GHCR_OWNER must not be empty."
+    TOKEN_MODE="$mode"
+    CONTAINER_TAG="$tag"
+    IMAGE_REF="ghcr.io/${GHCR_OWNER}/ai-discord-bot:${CONTAINER_TAG}"
+  }
+
+  extract_host_bundle() {
+    local archive
+    info "Extracting the host bundle from ${IMAGE_REF}..."
+    archive="$(mktemp "${TMPDIR:-/tmp}/ai-bot-bundle.XXXXXX")" || die "Could not create a temporary archive."
+    if ! docker_run run --rm --entrypoint tar "$IMAGE_REF" -C /app/host-bundle -cf - . > "$archive"; then
+      rm -f "$archive"
+      die "${IMAGE_REF} does not contain /app/host-bundle (or tar is missing). Rebuild or update the image."
+    fi
+    if ! tar -C "$TARGET_DIR" -xf "$archive"; then
+      rm -f "$archive"
+      die "Could not extract the host bundle into ${TARGET_DIR}."
+    fi
+    rm -f "$archive"
+    [ -f "$TARGET_DIR/docker-compose.yml" ] || die "The image host bundle has no docker-compose.yml."
+    [ -f "$TARGET_DIR/tools/dashboard_password.py" ] || die "The image host bundle has no credential generator."
+    printf '%s\n' "$IMAGE_REF" > "$TARGET_DIR/.image-install"
+    chmod +x "$TARGET_DIR/tools/discord-bot" "$TARGET_DIR/tools/install-cli.sh" 2>/dev/null || true
+    if [ "$(id -u)" -eq 0 ] && [ "$ACTUAL_USER" != "root" ]; then
+      chown -R "$ACTUAL_USER:$ACTUAL_GROUP" "$TARGET_DIR" 2>/dev/null || true
+    fi
+  }
+
+  resolve_docker_config_file() {
+    DOCKER_CONFIG_FILE="${DOCKER_CONFIG_FILE:-$(env_get DOCKER_CONFIG_FILE "")}"
+    if [ -z "$DOCKER_CONFIG_FILE" ]; then
+      DOCKER_CONFIG_FILE="${ACTUAL_HOME}/.docker/config.json"
+    fi
+    case "$DOCKER_CONFIG_FILE" in
+      /*) ;;
+      *) DOCKER_CONFIG_FILE="${TARGET_DIR}/${DOCKER_CONFIG_FILE}" ;;
+    esac
+    if [ "$DOCKER_CONFIG_FILE" = "/home/ubuntu/.docker/config.json" ] \
+       && [ "$ACTUAL_HOME" != "/home/ubuntu" ] \
+       && [ ! -f "$DOCKER_CONFIG_FILE" ]; then
+      DOCKER_CONFIG_FILE="${ACTUAL_HOME}/.docker/config.json"
+    fi
+    case "$DOCKER_CONFIG_FILE" in
+      */config.json) ;;
+      *)
+        warn "Docker stores registry credentials in config.json; using $(dirname "$DOCKER_CONFIG_FILE")/config.json."
+        DOCKER_CONFIG_FILE="$(dirname "$DOCKER_CONFIG_FILE")/config.json"
+        ;;
+    esac
+    DOCKER_CONFIG_DIR="$(dirname "$DOCKER_CONFIG_FILE")"
+  }
+
+  ensure_compose_plugin() {
+    local plugin
+    # Docker Desktop installs the Compose plugin under ~/.docker. Pointing
+    # DOCKER_CONFIG at a custom directory would otherwise hide it.
+    [ "$DOCKER_CONFIG_DIR" = "${ACTUAL_HOME}/.docker" ] && return 0
+    [ -x "${DOCKER_CONFIG_DIR}/cli-plugins/docker-compose" ] && return 0
+    for plugin in \
+      "${ACTUAL_HOME}/.docker/cli-plugins/docker-compose" \
+      /usr/local/lib/docker/cli-plugins/docker-compose \
+      /usr/lib/docker/cli-plugins/docker-compose \
+      /usr/libexec/docker/cli-plugins/docker-compose; do
+      [ -x "$plugin" ] || continue
+      mkdir -p "${DOCKER_CONFIG_DIR}/cli-plugins" 2>/dev/null || true
+      ln -sfn "$plugin" "${DOCKER_CONFIG_DIR}/cli-plugins/docker-compose" 2>/dev/null || true
+      return 0
+    done
+    plugin="$(command -v docker-compose 2>/dev/null || true)"
+    if [ -n "$plugin" ]; then
+      mkdir -p "${DOCKER_CONFIG_DIR}/cli-plugins" 2>/dev/null || true
+      ln -sfn "$plugin" "${DOCKER_CONFIG_DIR}/cli-plugins/docker-compose" 2>/dev/null || true
+    fi
+    return 0
+  }
+
+  prepare_image_only() {
+    local pulled=0
+    ensure_docker
+    if ! detect_docker; then
+      die "Docker is installed but not reachable. Start Docker and make sure ${ACTUAL_USER} can use it."
+    fi
+    DOCKER_READY=1
+    resolve_docker_config_file
+    ensure_compose_plugin
+    pre_resolve_image_tag
+
+    GHCR_TOKEN="${GHCR_TOKEN:-${GITHUB_TOKEN:-${GH_TOKEN:-}}}"
+    GHCR_USER="${GHCR_USER:-${GITHUB_USER:-}}"
+    if [ -z "$GHCR_USER" ] && [ -n "$GHCR_TOKEN" ]; then
+      GHCR_USER="$(ghcr_user_from_gh)"
+    fi
+    if [ -n "$GHCR_TOKEN" ]; then
+      if [ -z "$GHCR_USER" ]; then
+        if [ "$NON_INTERACTIVE" -eq 1 ]; then
+          die "Set GHCR_USER to the GitHub account that owns GHCR_TOKEN (or authenticate gh)."
+        fi
+        prompt_ghcr_user
+      fi
+      if docker_login "$GHCR_TOKEN" "$GHCR_USER"; then
+        info "Logged in to GHCR as ${GHCR_USER}."
+      else
+        warn "GHCR login failed for ${GHCR_USER}; trying the existing Docker login."
+      fi
+    fi
+
+    if docker_run pull "$IMAGE_REF"; then
+      pulled=1
+    fi
+    if [ "$pulled" -eq 0 ] && [ "$NON_INTERACTIVE" -eq 0 ] && [ "$HAS_TTY" -eq 1 ]; then
+      printf '\nThe private image could not be pulled. A classic PAT with read:packages is needed.\n' > /dev/tty
+      read_tty "GHCR token with read:packages (hidden, Enter to skip): " pull_token 1
+      if [ -n "$pull_token" ]; then
+        if [ -z "$GHCR_USER" ]; then
+          prompt_ghcr_user || true
+        fi
+        if [ -n "$GHCR_USER" ] && docker_login "$pull_token" "$GHCR_USER"; then
+          info "Logged in to GHCR as ${GHCR_USER}."
+          if docker_run pull "$IMAGE_REF"; then
+            pulled=1
+          fi
+        else
+          warn "GHCR login failed with the supplied token."
+        fi
+      fi
+    fi
+    if ! image_exists; then
+      die "The private image ${IMAGE_REF} is not available. Set GHCR_TOKEN (read:packages) and GHCR_USER, then re-run."
+    fi
+    if [ "$pulled" -eq 0 ]; then
+      warn "Could not pull ${IMAGE_REF}; using the local copy."
+    fi
+    if [ "$NO_START" -eq 0 ] && [ "$NO_WATCHTOWER" -eq 0 ]; then
+      docker_run pull nickfedor/watchtower:latest >/dev/null 2>&1 \
+        || warn "Could not pull the Watchtower image; Compose will retry."
+    fi
+    extract_host_bundle
+    IMAGE_PREPARED=1
+  }
+
   # -----------------------------------------------------------------------
   # Target directory
   # -----------------------------------------------------------------------
+  is_install_dir() {
+    [ -f "$1/docker-compose.yml" ] || return 1
+    [ -f "$1/bot.py" ] || [ -f "$1/.image-install" ]
+  }
+
   detect_existing_checkout() {
     local dir candidate
     # A running stack records the checkout it was started from. Prefer that
@@ -764,14 +961,14 @@ print(hash_password(sys.stdin.read().rstrip("\n")))
     if [ -z "$dir" ] && command -v sudo >/dev/null 2>&1; then
       dir="$(sudo -n docker inspect -f '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}' ai-discord-bot 2>/dev/null || true)"
     fi
-    if [ -n "$dir" ] && [ -f "$dir/docker-compose.yml" ] && [ -f "$dir/bot.py" ]; then
+    if [ -n "$dir" ] && is_install_dir "$dir"; then
       printf '%s' "$dir"
       return 0
     fi
     for candidate in "$PWD" "$RECOMMENDED_DIR" "$ACTUAL_HOME/ai-discord-bot" \
       "$ACTUAL_HOME/Desktop/ai-discord-bot" "$ACTUAL_HOME/Projects/ai-discord-bot" \
       "/opt/ai-discord-bot" "/srv/ai-discord-bot"; do
-      if [ -f "$candidate/docker-compose.yml" ] && [ -f "$candidate/bot.py" ]; then
+      if is_install_dir "$candidate"; then
         printf '%s' "$candidate"
         return 0
       fi
@@ -805,7 +1002,7 @@ print(hash_password(sys.stdin.read().rstrip("\n")))
     fi
   fi
 
-  if [ -d "$TARGET_DIR" ] && [ -f "$TARGET_DIR/docker-compose.yml" ] && [ -f "$TARGET_DIR/bot.py" ]; then
+  if [ -d "$TARGET_DIR" ] && is_install_dir "$TARGET_DIR"; then
     EXISTING_CHECKOUT=1
   else
     EXISTING_CHECKOUT=0
@@ -834,6 +1031,7 @@ print(hash_password(sys.stdin.read().rstrip("\n")))
     CONTAINER_TAG="${CONTAINER_TAG:-$(env_get CONTAINER_TAG "$MODE")}"
     GHCR_OWNER="${GHCR_OWNER:-$(env_get GHCR_OWNER jerit3787)}"
     GHCR_OWNER="$(printf '%s' "$GHCR_OWNER" | tr '[:upper:]' '[:lower:]')"
+    IMAGE_REF="ghcr.io/${GHCR_OWNER}/ai-discord-bot:${CONTAINER_TAG}"
     DASHBOARD_HOST_IP="${DASHBOARD_IP_ARG:-${DASHBOARD_HOST_IP:-$(env_get DASHBOARD_HOST_IP "")}}"
     [ -n "$DASHBOARD_HOST_IP" ] || DASHBOARD_HOST_IP="$(default_dashboard_ip)"
     DASHBOARD_PORT="${DASHBOARD_PORT_ARG:-${DASHBOARD_PORT:-$(env_get DASHBOARD_PORT 8787)}}"
@@ -844,11 +1042,17 @@ print(hash_password(sys.stdin.read().rstrip("\n")))
     DOCKER_CONFIG_FILE="${DOCKER_CONFIG_FILE:-$(env_get DOCKER_CONFIG_FILE "${ACTUAL_HOME}/.docker/config.json")}"
     printf '\n%sAI Discord Bot — dry run%s\n' "$BOLD" "$RESET"
     printf '  install dir:      %s\n' "$TARGET_DIR"
-    printf '  checkout:        %s\n' "$([ "$EXISTING_CHECKOUT" -eq 1 ] && echo existing || echo 'will clone')"
-    printf '  checkout update: %s\n' "$([ "$NO_GIT_UPDATE" -eq 1 ] && echo skipped || echo yes)"
-    printf '  branch:          %s\n' "$REPO_BRANCH"
+    if [ "$IMAGE_ONLY" -eq 1 ]; then
+      printf '  source:          image only (no git checkout)\n'
+      printf '  checkout:        host bundle from the image\n'
+      printf '  checkout update: n/a\n'
+    else
+      printf '  checkout:        %s\n' "$([ "$EXISTING_CHECKOUT" -eq 1 ] && echo existing || echo 'will clone')"
+      printf '  checkout update: %s\n' "$([ "$NO_GIT_UPDATE" -eq 1 ] && echo skipped || echo yes)"
+      printf '  branch:          %s\n' "$REPO_BRANCH"
+    fi
     printf '  token mode:      %s\n' "$MODE"
-    printf '  image:           ghcr.io/%s/ai-discord-bot:%s\n' "$GHCR_OWNER" "$CONTAINER_TAG"
+    printf '  image:           %s\n' "$IMAGE_REF"
     printf '  dashboard:       http://%s:%s\n' "$DASHBOARD_HOST_IP" "$DASHBOARD_PORT"
     printf '  .env:            %s\n' "$([ -f "$ENV_FILE" ] && echo present || echo 'will create')"
     printf '  docker gid:      %s\n' "$DOCKER_GID"
@@ -865,9 +1069,8 @@ print(hash_password(sys.stdin.read().rstrip("\n")))
   fi
 
   # -----------------------------------------------------------------------
-  # Clone or update the private checkout
+  # Clone/update the private checkout, or extract the host bundle from the image
   # -----------------------------------------------------------------------
-  ensure_git
   if [ ! -d "$TARGET_DIR" ]; then
     parent_dir="$(dirname "$TARGET_DIR")"
     if [ ! -d "$parent_dir" ]; then
@@ -895,24 +1098,29 @@ print(hash_password(sys.stdin.read().rstrip("\n")))
   fi
   [ -w "$TARGET_DIR" ] || die "${TARGET_DIR} is not writable by ${ACTUAL_USER}."
 
-  if [ "$NO_GIT_UPDATE" -eq 1 ]; then
-    [ "$EXISTING_CHECKOUT" -eq 1 ] || die "--no-git-update needs an existing checkout at ${TARGET_DIR}."
-    info "Skipping the checkout update (--no-git-update)."
-  elif [ "$EXISTING_CHECKOUT" -eq 1 ] && [ -d "$TARGET_DIR/.git" ]; then
-    info "Updating ${TARGET_DIR} (${REPO_BRANCH})..."
-    if ! update_repo; then
-      if [ "$NON_INTERACTIVE" -eq 1 ]; then
-        die "Could not fast-forward ${TARGET_DIR}. Resolve local changes or credentials first."
-      fi
-      warn "Could not update the checkout; continuing with the code already there."
-    fi
-    git_run config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*" >/dev/null 2>&1 || true
-  elif [ "$EXISTING_CHECKOUT" -eq 1 ]; then
-    warn "${TARGET_DIR} is not a git checkout; using the files already there."
+  if [ "$IMAGE_ONLY" -eq 1 ]; then
+    prepare_image_only
   else
-    info "Cloning Jerit3787/ai-discord-bot (${REPO_BRANCH}) into ${TARGET_DIR}..."
-    if ! clone_repo; then
-      die "Could not clone the private repository. Set GITHUB_TOKEN/GH_TOKEN, authenticate gh, or use an SSH key."
+    ensure_git
+    if [ "$NO_GIT_UPDATE" -eq 1 ]; then
+      [ "$EXISTING_CHECKOUT" -eq 1 ] || die "--no-git-update needs an existing checkout at ${TARGET_DIR}."
+      info "Skipping the checkout update (--no-git-update)."
+    elif [ "$EXISTING_CHECKOUT" -eq 1 ] && [ -d "$TARGET_DIR/.git" ]; then
+      info "Updating ${TARGET_DIR} (${REPO_BRANCH})..."
+      if ! update_repo; then
+        if [ "$NON_INTERACTIVE" -eq 1 ]; then
+          die "Could not fast-forward ${TARGET_DIR}. Resolve local changes or credentials first."
+        fi
+        warn "Could not update the checkout; continuing with the code already there."
+      fi
+      git_run config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*" >/dev/null 2>&1 || true
+    elif [ "$EXISTING_CHECKOUT" -eq 1 ]; then
+      warn "${TARGET_DIR} is not a git checkout; using the files already there."
+    else
+      info "Cloning Jerit3787/ai-discord-bot (${REPO_BRANCH}) into ${TARGET_DIR}..."
+      if ! clone_repo; then
+        die "Could not clone the private repository. Set GITHUB_TOKEN/GH_TOKEN, authenticate gh, or use an SSH key."
+      fi
     fi
   fi
   [ -f "$TARGET_DIR/docker-compose.yml" ] || die "docker-compose.yml not found in ${TARGET_DIR}."
@@ -959,7 +1167,7 @@ print(hash_password(sys.stdin.read().rstrip("\n")))
 
   STORED_TAG="$(env_get CONTAINER_TAG "")"
   CONTAINER_TAG="${CONTAINER_TAG:-${STORED_TAG:-$MODE}}"
-  if [ "$MODE_CHANGED" -eq 1 ]; then
+  if [ "$TAG_SUPPLIED" -eq 0 ] && [ "$MODE_CHANGED" -eq 1 ]; then
     case "$STORED_TAG" in
       ""|bot|user|latest) CONTAINER_TAG="$MODE" ;;
     esac
@@ -976,6 +1184,7 @@ print(hash_password(sys.stdin.read().rstrip("\n")))
   GHCR_OWNER="$(printf '%s' "$GHCR_OWNER" | tr '[:upper:]' '[:lower:]')"
   validate_value "$GHCR_OWNER" || die "GHCR_OWNER contains a newline."
   [ -n "$GHCR_OWNER" ] || die "GHCR_OWNER must not be empty."
+  IMAGE_REF="ghcr.io/${GHCR_OWNER}/ai-discord-bot:${CONTAINER_TAG}"
 
   DASHBOARD_IP_SUPPLIED=0
   [ -n "${DASHBOARD_IP_ARG:-}${DASHBOARD_HOST_IP:-}" ] && DASHBOARD_IP_SUPPLIED=1
@@ -1089,11 +1298,12 @@ print(hash_password(sys.stdin.read().rstrip("\n")))
   # -----------------------------------------------------------------------
   # Docker / socket details
   # -----------------------------------------------------------------------
-  if [ "$NO_START" -eq 0 ]; then
+  if [ "$NO_START" -eq 0 ] && [ "$DOCKER_READY" -eq 0 ]; then
     ensure_docker
     if ! detect_docker; then
       die "Docker is installed but not reachable. Start Docker and make sure ${ACTUAL_USER} can use it."
     fi
+    DOCKER_READY=1
   fi
   DOCKER_BIN="$(command -v docker 2>/dev/null || true)"
 
@@ -1103,27 +1313,8 @@ print(hash_password(sys.stdin.read().rstrip("\n")))
     ""|*[!0-9]*) DOCKER_GID=999 ;;
   esac
 
-  DOCKER_CONFIG_FILE="${DOCKER_CONFIG_FILE:-$(env_get DOCKER_CONFIG_FILE "")}"
-  if [ -z "$DOCKER_CONFIG_FILE" ]; then
-    DOCKER_CONFIG_FILE="${ACTUAL_HOME}/.docker/config.json"
-  fi
-  case "$DOCKER_CONFIG_FILE" in
-    /*) ;;
-    *) DOCKER_CONFIG_FILE="${TARGET_DIR}/${DOCKER_CONFIG_FILE}" ;;
-  esac
-  if [ "$DOCKER_CONFIG_FILE" = "/home/ubuntu/.docker/config.json" ] \
-     && [ "$ACTUAL_HOME" != "/home/ubuntu" ] \
-     && [ ! -f "$DOCKER_CONFIG_FILE" ]; then
-    DOCKER_CONFIG_FILE="${ACTUAL_HOME}/.docker/config.json"
-  fi
-  case "$DOCKER_CONFIG_FILE" in
-    */config.json) ;;
-    *)
-      warn "Docker stores registry credentials in config.json; using $(dirname "$DOCKER_CONFIG_FILE")/config.json."
-      DOCKER_CONFIG_FILE="$(dirname "$DOCKER_CONFIG_FILE")/config.json"
-      ;;
-  esac
-  DOCKER_CONFIG_DIR="$(dirname "$DOCKER_CONFIG_FILE")"
+  resolve_docker_config_file
+  ensure_compose_plugin
 
   # -----------------------------------------------------------------------
   # Dashboard login and Watchtower token
@@ -1221,49 +1412,51 @@ print(hash_password(sys.stdin.read().rstrip("\n")))
   fi
 
   if [ "$NO_START" -eq 0 ]; then
-    if [ -n "$GHCR_TOKEN" ]; then
-      if [ -z "$GHCR_USER" ]; then
-        if [ "$NON_INTERACTIVE" -eq 1 ]; then
-          die "Set GHCR_USER to the GitHub account that owns GHCR_TOKEN (or authenticate gh)."
+    if [ "$IMAGE_PREPARED" -eq 0 ]; then
+      if [ -n "$GHCR_TOKEN" ]; then
+        if [ -z "$GHCR_USER" ]; then
+          if [ "$NON_INTERACTIVE" -eq 1 ]; then
+            die "Set GHCR_USER to the GitHub account that owns GHCR_TOKEN (or authenticate gh)."
+          fi
+          prompt_ghcr_user
         fi
-        prompt_ghcr_user
+        if docker_login "$GHCR_TOKEN" "$GHCR_USER"; then
+          info "Logged in to GHCR as ${GHCR_USER}."
+        else
+          warn "GHCR login failed for ${GHCR_USER}; trying the existing Docker login."
+        fi
       fi
-      if docker_login "$GHCR_TOKEN" "$GHCR_USER"; then
-        info "Logged in to GHCR as ${GHCR_USER}."
-      else
-        warn "GHCR login failed for ${GHCR_USER}; trying the existing Docker login."
-      fi
-    fi
 
-    PULL_OK=0
-    if pull_images; then
-      PULL_OK=1
-    else
-      if [ "$NON_INTERACTIVE" -eq 0 ] && [ "$HAS_TTY" -eq 1 ]; then
-        printf '\nThe private image could not be pulled. A classic PAT with read:packages is needed.\n' > /dev/tty
-        read_tty "GHCR token with read:packages (hidden, Enter to skip): " pull_token 1
-        if [ -n "$pull_token" ]; then
-          if [ -z "$GHCR_USER" ]; then
-            prompt_ghcr_user || true
-          fi
-          if [ -z "$GHCR_USER" ]; then
-            warn "No GitHub username supplied; cannot log in to GHCR."
-          elif docker_login "$pull_token" "$GHCR_USER"; then
-            info "Logged in to GHCR as ${GHCR_USER}."
-            if pull_images; then
-              PULL_OK=1
+      PULL_OK=0
+      if pull_images; then
+        PULL_OK=1
+      else
+        if [ "$NON_INTERACTIVE" -eq 0 ] && [ "$HAS_TTY" -eq 1 ]; then
+          printf '\nThe private image could not be pulled. A classic PAT with read:packages is needed.\n' > /dev/tty
+          read_tty "GHCR token with read:packages (hidden, Enter to skip): " pull_token 1
+          if [ -n "$pull_token" ]; then
+            if [ -z "$GHCR_USER" ]; then
+              prompt_ghcr_user || true
             fi
-          else
-            warn "GHCR login failed with the supplied token."
+            if [ -z "$GHCR_USER" ]; then
+              warn "No GitHub username supplied; cannot log in to GHCR."
+            elif docker_login "$pull_token" "$GHCR_USER"; then
+              info "Logged in to GHCR as ${GHCR_USER}."
+              if pull_images; then
+                PULL_OK=1
+              fi
+            else
+              warn "GHCR login failed with the supplied token."
+            fi
           fi
         fi
       fi
-    fi
-    if ! image_exists; then
-      die "The private image ghcr.io/${GHCR_OWNER}/ai-discord-bot:${CONTAINER_TAG} is not available. Set GHCR_TOKEN (read:packages) and GHCR_USER, then re-run."
-    fi
-    if [ "$PULL_OK" -eq 0 ]; then
-      warn "Could not pull the current image; starting the local copy. Set GHCR_TOKEN (read:packages) to update it."
+      if ! image_exists; then
+        die "The private image ${IMAGE_REF} is not available. Set GHCR_TOKEN (read:packages) and GHCR_USER, then re-run."
+      fi
+      if [ "$PULL_OK" -eq 0 ]; then
+        warn "Could not pull the current image; starting the local copy. Set GHCR_TOKEN (read:packages) to update it."
+      fi
     fi
 
     info "Starting the Compose stack..."
@@ -1326,6 +1519,9 @@ print(hash_password(sys.stdin.read().rstrip("\n")))
     printf '\n%sAI Discord Bot is ready%s\n' "$BOLD" "$RESET"
   fi
   printf '  install:    %s\n' "$TARGET_DIR"
+  if [ "$IMAGE_ONLY" -eq 1 ]; then
+    printf '  source:     image only (%s)\n' "$IMAGE_REF"
+  fi
   printf '  mode:       %s (%s)\n' "$MODE" "$CONTAINER_TAG"
   printf '  dashboard:  %s\n' "$DASHBOARD_URL"
   printf '  login:      %s\n' "$DASHBOARD_USER"
@@ -1365,7 +1561,11 @@ print(hash_password(sys.stdin.read().rstrip("\n")))
     else
       printf '  cd %s\n  docker compose ps\n  docker compose logs -f bot\n' "$TARGET_DIR"
     fi
-    printf '\nRe-run this installer to update the checkout and images; .env and data/ are preserved.\n'
+    if [ "$IMAGE_ONLY" -eq 1 ]; then
+      printf '\nRe-run this installer to pull a new image; .env and data/ are preserved.\n'
+    else
+      printf '\nRe-run this installer to update the checkout and images; .env and data/ are preserved.\n'
+    fi
   fi
 }
 

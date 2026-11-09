@@ -220,6 +220,7 @@
                 <div class="tab-list" role="tablist" aria-label="AI Discord Bot commands">
                   <button class="tab" type="button" role="tab" id="tab-ai-interactive" aria-controls="panel-ai-interactive" aria-selected="true">Interactive</button>
                   <button class="tab" type="button" role="tab" id="tab-ai-unattended" aria-controls="panel-ai-unattended" aria-selected="false" tabindex="-1">Unattended</button>
+                  <button class="tab" type="button" role="tab" id="tab-ai-image" aria-controls="panel-ai-image" aria-selected="false" tabindex="-1">Image only</button>
                   <button class="tab" type="button" role="tab" id="tab-ai-update" aria-controls="panel-ai-update" aria-selected="false" tabindex="-1">Update</button>
                 </div>
 
@@ -250,11 +251,24 @@
                   <p>No prompts. A fresh unattended install needs the Discord token and API key; the dashboard password is generated and printed once. Add <code>DASHBOARD_HOST_IP</code> to publish it on a Tailscale or LAN address.</p>
                 </div>
 
+                <div class="tab-panel" role="tabpanel" id="panel-ai-image" aria-labelledby="tab-ai-image" hidden>
+                  <div class="code-block">
+                    <pre><span class="prompt" aria-hidden="true">$</span><code id="cmd-ai-image">curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/install-image.sh | \
+  GHCR_TOKEN=... GHCR_USER='&lt;your GitHub username&gt;' bash</code></pre>
+                    <button class="btn" type="button" data-copy-target="cmd-ai-image" aria-label="Copy image-only install command">
+                      <svg class="icon icon-copy" aria-hidden="true"><use href="assets/icons.svg?v=500451243d#i-copy"/></svg>
+                      <svg class="icon icon-check" aria-hidden="true"><use href="assets/icons.svg?v=500451243d#i-check"/></svg>
+                      <span class="copy-label">Copy</span>
+                    </button>
+                  </div>
+                  <p>Pulls the image and extracts the Compose file and host tools from <code>/app/host-bundle</code>. It never clones the repository; <code>.env</code> and <code>data/</code> are preserved on re-runs.</p>
+                </div>
+
                 <div class="tab-panel" role="tabpanel" id="panel-ai-update" aria-labelledby="tab-ai-update" hidden>
                   <div class="code-block">
                     <pre><span class="prompt" aria-hidden="true">$</span><code id="cmd-ai-update">curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | bash
 
-# Image-only update
+# Container-only update
 discord-bot update</code></pre>
                     <button class="btn" type="button" data-copy-target="cmd-ai-update" aria-label="Copy update command">
                       <svg class="icon icon-copy" aria-hidden="true"><use href="assets/icons.svg?v=500451243d#i-copy"/></svg>
@@ -279,6 +293,7 @@ discord-bot update</code></pre>
               </div>
               <ul class="file-chips" aria-label="Scripts in this project">
                 <li><a href="AI-Discord-Bot/setup.sh" data-view-script data-source="https://github.com/Jerit3787/scripts/blob/main/AI-Discord-Bot/setup.sh" data-description="AI Discord Bot installer">setup.sh</a></li>
+                <li><a href="AI-Discord-Bot/install-image.sh" data-view-script data-source="https://github.com/Jerit3787/scripts/blob/main/AI-Discord-Bot/install-image.sh" data-description="AI Discord Bot image-only installer">install-image.sh</a></li>
               </ul>
             </div>
           </article>
@@ -336,6 +351,7 @@ discord-bot update</code></pre>
 │   └── index.html  <span class="dim"># project page</span>
 ├── <span class="hl">AI-Discord-Bot/</span>
 │   ├── setup.sh
+│   ├── install-image.sh
 │   ├── README.md
 │   ├── index.html  <span class="dim"># project page</span>
 │   └── logo.svg

@@ -48,7 +48,11 @@ curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | \
   DISCORD_TOKEN=... OPENAI_API_KEY=... \
   AI_DISCORD_BOT_NON_INTERACTIVE=1 bash
 
-# Image-only update without re-running the installer
+# Image-only install: pull the image and extract its host bundle, no git checkout
+curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/install-image.sh | \
+  GHCR_TOKEN=... GHCR_USER='<your GitHub username>' bash
+
+# Container-only update without re-running the installer
 discord-bot update
 ```
 
@@ -57,6 +61,10 @@ The installer clones or fast-forwards `Jerit3787/ai-discord-bot`, keeps existing
 config, logs in to GHCR, pulls the private `:bot` or `:user` image and starts the bot, dashboard and
 Watchtower. The dashboard uses username/password login; Watchtower updates only the labeled bot
 container.
+
+`install-image.sh` is the image-only path: it never clones the repository. It pulls the image,
+extracts the Compose file and host tools from `/app/host-bundle`, and preserves `.env`/`data/` on
+re-runs.
 
 Details, token scopes, options and environment variables:
 [`AI-Discord-Bot/README.md`](AI-Discord-Bot/README.md).
@@ -88,6 +96,7 @@ Details, token scopes, options and environment variables:
 │       └── run-tests.sh   # stub-driven bash tests
 └── AI-Discord-Bot/
     ├── setup.sh           # AI Discord Bot installer
+    ├── install-image.sh   # image-only bootstrap (no checkout)
     ├── README.md          # token scopes, options and operations
     ├── index.html         # AI Discord Bot project page
     └── logo.svg           # project mark
