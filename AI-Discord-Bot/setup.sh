@@ -774,6 +774,8 @@ print(hash_password(sys.stdin.read().rstrip("\n")))
     [ -n "$raw_stored" ] || stored=""
     mode="$(normalize_mode "${TOKEN_MODE_ARG:-${TOKEN_MODE:-${stored:-}}}")"
     [ "$mode" != "invalid" ] || die "TOKEN_MODE must be bot or user."
+    MODE_CHANGED=0
+    [ -n "$stored" ] && [ "$stored" != "$mode" ] && MODE_CHANGED=1
     if [ -z "${TOKEN_MODE_ARG:-}${TOKEN_MODE:-}${stored:-}" ]; then
       if [ "$NON_INTERACTIVE" -eq 0 ]; then
         printf '\nToken mode:\n  bot  = dedicated bot account (recommended, ToS-safe)\n  user = your own account as a self-bot (violates Discord ToS, ban risk)\n' > /dev/tty
@@ -1024,15 +1026,8 @@ print(hash_password(sys.stdin.read().rstrip("\n")))
   # Dry run: resolve what is possible and print the plan without side effects.
   # -----------------------------------------------------------------------
   if [ "$DRY_RUN" -eq 1 ]; then
-    RAW_STORED_MODE="$(env_get TOKEN_MODE "")"
-    STORED_MODE="$(normalize_mode "$RAW_STORED_MODE")"
-    [ -n "$RAW_STORED_MODE" ] || STORED_MODE=""
-    MODE="$(normalize_mode "${TOKEN_MODE_ARG:-${TOKEN_MODE:-${STORED_MODE:-bot}}}")"
-    [ "$MODE" != "invalid" ] || die "TOKEN_MODE must be bot or user."
-    CONTAINER_TAG="${CONTAINER_TAG:-$(env_get CONTAINER_TAG "$MODE")}"
-    GHCR_OWNER="${GHCR_OWNER:-$(env_get GHCR_OWNER jerit3787)}"
-    GHCR_OWNER="$(printf '%s' "$GHCR_OWNER" | tr '[:upper:]' '[:lower:]')"
-    IMAGE_REF="ghcr.io/${GHCR_OWNER}/ai-discord-bot:${CONTAINER_TAG}"
+    pre_resolve_image_tag
+    MODE="$TOKEN_MODE"
     DASHBOARD_HOST_IP="${DASHBOARD_IP_ARG:-${DASHBOARD_HOST_IP:-$(env_get DASHBOARD_HOST_IP "")}}"
     [ -n "$DASHBOARD_HOST_IP" ] || DASHBOARD_HOST_IP="$(default_dashboard_ip)"
     DASHBOARD_PORT="${DASHBOARD_PORT_ARG:-${DASHBOARD_PORT:-$(env_get DASHBOARD_PORT 8787)}}"
@@ -1139,53 +1134,8 @@ print(hash_password(sys.stdin.read().rstrip("\n")))
   EXISTING_ENV=0
   [ -f "$ENV_FILE" ] && EXISTING_ENV=1
 
-  RAW_STORED_MODE="$(env_get TOKEN_MODE "")"
-  STORED_MODE="$(normalize_mode "$RAW_STORED_MODE")"
-  [ -n "$RAW_STORED_MODE" ] || STORED_MODE=""
-  MODE_SUPPLIED=0
-  [ -n "${TOKEN_MODE_ARG:-}${TOKEN_MODE:-}" ] && MODE_SUPPLIED=1
-  MODE="$(normalize_mode "${TOKEN_MODE_ARG:-${TOKEN_MODE:-${STORED_MODE:-}}}")"
-  if [ "$MODE" = "invalid" ]; then
-    die "TOKEN_MODE must be bot or user."
-  fi
-  if [ "$MODE_SUPPLIED" -eq 0 ] && [ -z "$STORED_MODE" ]; then
-    if [ "$NON_INTERACTIVE" -eq 0 ]; then
-      printf '\nToken mode:\n  bot  = dedicated bot account (recommended, ToS-safe)\n  user = your own account as a self-bot (violates Discord ToS, ban risk)\n' > /dev/tty
-      while :; do
-        read_tty "Token mode (bot or user) [bot]: " mode_answer
-        MODE="$(normalize_mode "${mode_answer:-bot}")"
-        [ "$MODE" != "invalid" ] && break
-        printf 'Please type bot or user.\n' > /dev/tty
-      done
-    else
-      MODE="bot"
-    fi
-  fi
-  MODE_CHANGED=0
-  if [ -n "$STORED_MODE" ] && [ "$STORED_MODE" != "$MODE" ]; then
-    MODE_CHANGED=1
-  fi
-
-  STORED_TAG="$(env_get CONTAINER_TAG "")"
-  CONTAINER_TAG="${CONTAINER_TAG:-${STORED_TAG:-$MODE}}"
-  if [ "$TAG_SUPPLIED" -eq 0 ] && [ "$MODE_CHANGED" -eq 1 ]; then
-    case "$STORED_TAG" in
-      ""|bot|user|latest) CONTAINER_TAG="$MODE" ;;
-    esac
-  fi
-  validate_value "$CONTAINER_TAG" || die "CONTAINER_TAG contains a newline."
-  case "$CONTAINER_TAG" in
-    latest) [ "$MODE" = "bot" ] || die "CONTAINER_TAG=latest is a bot-mode image; set CONTAINER_TAG=user or a user-<sha> tag." ;;
-    bot|bot-*) [ "$MODE" = "bot" ] || die "TOKEN_MODE=user needs CONTAINER_TAG=user (or user-<sha>), not ${CONTAINER_TAG}." ;;
-    user|user-*) [ "$MODE" = "user" ] || die "TOKEN_MODE=bot needs CONTAINER_TAG=bot (or bot-<sha>), not ${CONTAINER_TAG}." ;;
-    *) die "CONTAINER_TAG must be bot, user, latest, bot-<sha> or user-<sha>." ;;
-  esac
-
-  GHCR_OWNER="${GHCR_OWNER:-$(env_get GHCR_OWNER jerit3787)}"
-  GHCR_OWNER="$(printf '%s' "$GHCR_OWNER" | tr '[:upper:]' '[:lower:]')"
-  validate_value "$GHCR_OWNER" || die "GHCR_OWNER contains a newline."
-  [ -n "$GHCR_OWNER" ] || die "GHCR_OWNER must not be empty."
-  IMAGE_REF="ghcr.io/${GHCR_OWNER}/ai-discord-bot:${CONTAINER_TAG}"
+  pre_resolve_image_tag
+  MODE="$TOKEN_MODE"
 
   DASHBOARD_IP_SUPPLIED=0
   [ -n "${DASHBOARD_IP_ARG:-}${DASHBOARD_HOST_IP:-}" ] && DASHBOARD_IP_SUPPLIED=1
