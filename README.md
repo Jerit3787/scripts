@@ -44,7 +44,7 @@ curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | bash
 
 # Fresh unattended install. Put tokens on the bash side, not on curl.
 curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | \
-  GITHUB_TOKEN=... GHCR_USER=Jerit3787 \
+  GITHUB_TOKEN=... GHCR_USER='<your GitHub username>' \
   DISCORD_TOKEN=... OPENAI_API_KEY=... \
   AI_DISCORD_BOT_NON_INTERACTIVE=1 bash
 

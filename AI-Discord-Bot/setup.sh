@@ -11,7 +11,7 @@
 # Environment (all optional except on a fresh unattended install):
 #   GITHUB_TOKEN / GH_TOKEN       private repository token, this run only
 #   GHCR_TOKEN                   PAT with read:packages for the private image
-#   GHCR_USER                    GitHub account that owns GHCR_TOKEN
+#   GHCR_USER                    your GitHub username (owner of GHCR_TOKEN)
 #   AI_DISCORD_BOT_INSTALL_DIR   install path (default /opt/ai-discord-bot)
 #   AI_DISCORD_BOT_BRANCH        branch (default main)
 #   AI_DISCORD_BOT_NON_INTERACTIVE=1   no prompts; CI=1 does the same
@@ -60,7 +60,7 @@ Options:
 Environment:
   GITHUB_TOKEN / GH_TOKEN    Token for the private clone/update (this run only).
   GHCR_TOKEN                 PAT with read:packages for the private image.
-  GHCR_USER                  GitHub account that owns GHCR_TOKEN.
+  GHCR_USER                  Your GitHub username (the account that owns GHCR_TOKEN).
   AI_DISCORD_BOT_INSTALL_DIR Install path.
   AI_DISCORD_BOT_BRANCH      Branch.
   AI_DISCORD_BOT_NON_INTERACTIVE=1  Same as --non-interactive.
@@ -681,6 +681,26 @@ main() {
     fi
   }
 
+  prompt_ghcr_user() {
+    local default_user answer
+    if [ "$NON_INTERACTIVE" -eq 1 ] || [ "$HAS_TTY" -ne 1 ]; then
+      return 1
+    fi
+    default_user="$(ghcr_user_from_gh)"
+    while [ -z "${GHCR_USER:-}" ]; do
+      if [ -n "$default_user" ]; then
+        read_tty "GitHub username for GHCR [${default_user}]: " answer
+        GHCR_USER="${answer:-$default_user}"
+      else
+        read_tty "GitHub username for GHCR (the account that owns the token): " answer
+        GHCR_USER="$answer"
+      fi
+      if [ -z "$GHCR_USER" ]; then
+        printf 'Enter the GitHub account that owns the token.\n' > /dev/tty
+      fi
+    done
+  }
+
   ensure_config_file() {
     local dir
     dir="$(dirname "$DOCKER_CONFIG_FILE")"
@@ -1206,8 +1226,7 @@ print(hash_password(sys.stdin.read().rstrip("\n")))
         if [ "$NON_INTERACTIVE" -eq 1 ]; then
           die "Set GHCR_USER to the GitHub account that owns GHCR_TOKEN (or authenticate gh)."
         fi
-        read_tty "GitHub username for GHCR [Jerit3787]: " ghcr_user_answer
-        GHCR_USER="${ghcr_user_answer:-Jerit3787}"
+        prompt_ghcr_user
       fi
       if docker_login "$GHCR_TOKEN" "$GHCR_USER"; then
         info "Logged in to GHCR as ${GHCR_USER}."
@@ -1224,9 +1243,12 @@ print(hash_password(sys.stdin.read().rstrip("\n")))
         printf '\nThe private image could not be pulled. A classic PAT with read:packages is needed.\n' > /dev/tty
         read_tty "GHCR token with read:packages (hidden, Enter to skip): " pull_token 1
         if [ -n "$pull_token" ]; then
-          [ -n "$GHCR_USER" ] || read_tty "GitHub username for GHCR [Jerit3787]: " ghcr_user_answer
-          GHCR_USER="${GHCR_USER:-${ghcr_user_answer:-Jerit3787}}"
-          if docker_login "$pull_token" "$GHCR_USER"; then
+          if [ -z "$GHCR_USER" ]; then
+            prompt_ghcr_user || true
+          fi
+          if [ -z "$GHCR_USER" ]; then
+            warn "No GitHub username supplied; cannot log in to GHCR."
+          elif docker_login "$pull_token" "$GHCR_USER"; then
             info "Logged in to GHCR as ${GHCR_USER}."
             if pull_images; then
               PULL_OK=1

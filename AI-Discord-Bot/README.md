@@ -52,7 +52,7 @@ A token for the private repository and the private image can be supplied up fron
 ```bash
 curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | \
   GITHUB_TOKEN='<PAT with repo and read:packages>' \
-  GHCR_USER=Jerit3787 \
+  GHCR_USER='<your GitHub username>' \
   bash
 ```
 
@@ -64,7 +64,7 @@ curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | \
 curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | \
   GITHUB_TOKEN='<PAT with repo and read:packages>' \
   GHCR_TOKEN='<PAT with read:packages>' \
-  GHCR_USER=Jerit3787 \
+  GHCR_USER='<your GitHub username>' \
   DISCORD_TOKEN='<bot or user token>' \
   OPENAI_API_KEY='<OpenAI-compatible key>' \
   TOKEN_MODE=bot \
@@ -94,7 +94,7 @@ If the checkout is managed outside the installer, add `--no-git-update`:
 
 ```bash
 curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | \
-  GHCR_TOKEN='<PAT with read:packages>' GHCR_USER=Jerit3787 \
+  GHCR_TOKEN='<PAT with read:packages>' GHCR_USER='<your GitHub username>' \
   bash -s -- --no-git-update
 ```
 
@@ -216,7 +216,7 @@ curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | \
 |---|---|
 | `GITHUB_TOKEN` / `GH_TOKEN` | Private repository token for this run. Also reused for GHCR when `GHCR_TOKEN` is unset. |
 | `GHCR_TOKEN` | PAT with `read:packages` for the private image. |
-| `GHCR_USER` | GitHub account that owns `GHCR_TOKEN`. Default: the authenticated `gh` account. |
+| `GHCR_USER` | Your GitHub username, for the account that owns `GHCR_TOKEN`. Default: the authenticated `gh` account, otherwise prompted. |
 | `AI_DISCORD_BOT_INSTALL_DIR` | Install path. |
 | `AI_DISCORD_BOT_BRANCH` | Branch. Default `main`. |
 | `AI_DISCORD_BOT_NON_INTERACTIVE=1` | Same as `--non-interactive`. `CI=1` also works. |
@@ -256,7 +256,7 @@ to git through an `Authorization` header in the environment, never written to `.
 
 For GHCR, the package is private. Create a classic PAT with `read:packages` (and `repo` if the same
 token is used for the clone), or a fine-grained token with Packages read access. `GHCR_USER` must be
-the account that owns the token. A token from a different account that only has package access also
+your GitHub username: the account that owns the token. A token from a different account that only has package access also
 works when that account is named.
 
 ## Troubleshooting

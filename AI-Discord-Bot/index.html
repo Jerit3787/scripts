@@ -131,7 +131,7 @@
                 <div class="code-block">
                   <pre><span class="prompt" aria-hidden="true">$</span><code id="cmd-unattended">curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | \
   GITHUB_TOKEN='&lt;repo + read:packages PAT&gt;' \
-  GHCR_USER=Jerit3787 \
+  GHCR_USER='&lt;your GitHub username&gt;' \
   DISCORD_TOKEN='&lt;bot token&gt;' \
   OPENAI_API_KEY='&lt;OpenAI-compatible key&gt;' \
   TOKEN_MODE=bot DASHBOARD_HOST_IP=100.64.0.10 \
@@ -168,9 +168,9 @@ discord-bot update</code></pre>
           <svg class="icon-24" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-info"/></svg>
           <div class="section-message-body">
             <h2 id="private-title" class="heading-small">The repository and image are private</h2>
-            <p>On a fresh server, give bash a GitHub token (not curl), sign in with <code>gh auth login</code>, or use an SSH key. The image pull needs a PAT with <code>read:packages</code>; <code>GHCR_USER</code> is the account that owns that token. Tokens are used for the run only and are not written into <code>.git/config</code>.</p>
+            <p>On a fresh server, give bash a GitHub token (not curl), sign in with <code>gh auth login</code>, or use an SSH key. The image pull needs a PAT with <code>read:packages</code>; <code>GHCR_USER</code> is your GitHub username, the account that owns that token. Tokens are used for the run only and are not written into <code>.git/config</code>.</p>
             <div class="section-message-actions">
-              <button class="link-button" type="button" data-copy="curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | GITHUB_TOKEN=... GHCR_USER=Jerit3787 bash" data-copy-flag="Token command copied">Copy the command with a token</button>
+              <button class="link-button" type="button" data-copy="curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | GITHUB_TOKEN=... GHCR_USER='&lt;your GitHub username&gt;' bash" data-copy-flag="Token command copied">Copy the command with a token</button>
             </div>
           </div>
         </section>
@@ -276,7 +276,7 @@ discord-bot update</code></pre>
           </div>
           <pre class="log" aria-label="Example installer output"><span class="ok">[setup]</span> Cloning Jerit3787/ai-discord-bot (main) into /opt/ai-discord-bot...
 <span class="ok">[setup]</span> Wrote /opt/ai-discord-bot/.env (mode: bot, image: bot).
-<span class="ok">[setup]</span> Logged in to GHCR as Jerit3787.
+<span class="ok">[setup]</span> Logged in to GHCR as &lt;your GitHub username&gt;.
 <span class="ok">[setup]</span> Starting the Compose stack...
 <span class="ok">[setup]</span> AI Discord Bot is ready
   dashboard:  http://100.64.0.10:8787
@@ -324,7 +324,7 @@ discord-bot update</code></pre>
                     <tbody>
                       <tr><td><code>GITHUB_TOKEN</code>, <code>GH_TOKEN</code></td><td>Private repository token for this run. Reused for GHCR when <code>GHCR_TOKEN</code> is unset.</td></tr>
                       <tr><td><code>GHCR_TOKEN</code></td><td>PAT with <code>read:packages</code> for the private image.</td></tr>
-                      <tr><td><code>GHCR_USER</code></td><td>GitHub account that owns the GHCR token. <span class="default">Default: the authenticated <code>gh</code> account.</span></td></tr>
+                      <tr><td><code>GHCR_USER</code></td><td>Your GitHub username, for the account that owns the GHCR token. <span class="default">Default: the authenticated <code>gh</code> account, otherwise prompted.</span></td></tr>
                       <tr><td><code>AI_DISCORD_BOT_INSTALL_DIR</code></td><td>Install path.</td></tr>
                       <tr><td><code>AI_DISCORD_BOT_BRANCH</code></td><td>Branch. <span class="default">Default <code>main</code>.</span></td></tr>
                       <tr><td><code>AI_DISCORD_BOT_NON_INTERACTIVE=1</code></td><td>Same as <code>--non-interactive</code>. <code>CI=1</code> also works.</td></tr>
