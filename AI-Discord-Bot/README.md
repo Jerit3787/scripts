@@ -125,14 +125,18 @@ curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | \
   bash -s -- --no-git-update
 ```
 
-For container-only updates without re-running the installer:
+For updates without re-running the installer:
 
 ```bash
 discord-bot update
 ```
 
-For an image-only install, re-run `install-image.sh` with the same environment; it pulls the new
-image and refreshes the host bundle while keeping `.env` and `data/`.
+On an image-only install, `discord-bot update` pulls the image, refreshes the Compose file and host
+tools from `/app/host-bundle`, and recreates the containers. Re-run `install-image.sh` if the CLI is
+missing or you want to repair the host bundle.
+
+On a full checkout, `discord-bot update` updates the image only; refresh the checkout with git or the
+installer.
 
 ## Dashboard login
 

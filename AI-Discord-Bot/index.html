@@ -172,7 +172,7 @@
                   <pre><span class="prompt" aria-hidden="true">$</span><code id="cmd-update">curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | \
   GITHUB_TOKEN='&lt;repo PAT&gt;' bash
 
-# Or update the containers without re-running the installer
+# Or update the image and the image-only host bundle
 discord-bot update</code></pre>
                   <button class="btn" type="button" data-copy-target="cmd-update" aria-label="Copy update command">
                     <svg class="icon icon-copy" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-copy"/></svg>
@@ -180,7 +180,7 @@ discord-bot update</code></pre>
                     <span class="copy-label">Copy</span>
                   </button>
                 </div>
-                <p>The checkout is fast-forwarded, <code>.env</code> and <code>data/</code> are kept, the current image is pulled and the containers are recreated. Use <code>--no-git-update</code> when the checkout is managed separately.</p>
+                <p><code>discord-bot update</code> pulls the image, refreshes an image-only host bundle, and recreates the containers. The installer also fast-forwards a full checkout and keeps <code>.env</code> and <code>data/</code>.</p>
               </div>
             </div>
           </div>

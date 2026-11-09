@@ -52,7 +52,7 @@ curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | \
 curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/install-image.sh | \
   GHCR_TOKEN=... GHCR_USER='<your GitHub username>' bash
 
-# Container-only update without re-running the installer
+# Update the image and, for image-only installs, the host bundle
 discord-bot update
 ```
 

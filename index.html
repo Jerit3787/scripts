@@ -268,7 +268,7 @@
                   <div class="code-block">
                     <pre><span class="prompt" aria-hidden="true">$</span><code id="cmd-ai-update">curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | bash
 
-# Container-only update
+# Update the image and image-only host bundle
 discord-bot update</code></pre>
                     <button class="btn" type="button" data-copy-target="cmd-ai-update" aria-label="Copy update command">
                       <svg class="icon icon-copy" aria-hidden="true"><use href="assets/icons.svg?v=500451243d#i-copy"/></svg>
@@ -276,7 +276,7 @@ discord-bot update</code></pre>
                       <span class="copy-label">Copy</span>
                     </button>
                   </div>
-                  <p>Re-running preserves <code>.env</code> and <code>data/</code>, fast-forwards the checkout and recreates the containers. The dashboard <strong>Update bot</strong> button uses Watchtower for the bot image only.</p>
+                  <p><code>discord-bot update</code> pulls the image and, on an image-only install, refreshes the host bundle. Re-running the installer also fast-forwards a full checkout. <code>.env</code> and <code>data/</code> are preserved.</p>
                 </div>
               </div>
             </div>
