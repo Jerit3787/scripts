@@ -35,6 +35,7 @@
         <ul class="nav-items">
           <li><a class="nav-item" href="./" aria-current="page">Catalog</a></li>
           <li><a class="nav-item" href="IDPS-WebServer/">CAIDPS</a></li>
+          <li><a class="nav-item" href="AI-Discord-Bot/">AI Discord Bot</a></li>
         </ul>
       </nav>
       <div class="topnav-end">
@@ -83,14 +84,15 @@
             <h2 id="read-first-title" class="heading-small">Read a script before you pipe it to bash</h2>
             <p>Every installer here is plain bash served straight from the repository, with no build step. Open any script to read it with line numbers and a SHA-256 checksum, then run it.</p>
             <div class="section-message-actions">
-              <a href="IDPS-WebServer/setup.sh" data-view-script data-source="https://github.com/Jerit3787/scripts/blob/main/IDPS-WebServer/setup.sh" data-description="CAIDPS installer and setup wizard">Read setup.sh</a>
+              <a href="IDPS-WebServer/setup.sh" data-view-script data-source="https://github.com/Jerit3787/scripts/blob/main/IDPS-WebServer/setup.sh" data-description="CAIDPS installer and setup wizard">Read CAIDPS setup.sh</a>
+              <a href="AI-Discord-Bot/setup.sh" data-view-script data-source="https://github.com/Jerit3787/scripts/blob/main/AI-Discord-Bot/setup.sh" data-description="AI Discord Bot installer">Read AI bot setup.sh</a>
               <a href="https://github.com/Jerit3787/scripts" target="_blank" rel="noopener">Browse the source</a>
             </div>
           </div>
         </section>
 
         <section class="stack-tight" id="catalog" aria-labelledby="catalog-title">
-          <h2 id="catalog-title" class="section-heading">Projects <span class="badge" aria-label="1 project">1</span></h2>
+          <h2 id="catalog-title" class="section-heading">Projects <span class="badge" aria-label="2 projects">2</span></h2>
 
           <article class="card" aria-labelledby="caidps-title">
             <div class="card-body">
@@ -184,6 +186,103 @@
             </div>
           </article>
 
+          <article class="card" aria-labelledby="ai-bot-title">
+            <div class="card-body">
+              <div class="project-head">
+                <img class="project-logo" src="AI-Discord-Bot/logo.svg" width="40" height="40" alt="">
+                <div class="project-head-text">
+                  <h3 id="ai-bot-title" class="project-title">
+                    <a href="AI-Discord-Bot/">AI Discord Bot</a>
+                    <span class="lozenges">
+                      <span class="lozenge lozenge-new">New</span>
+                      <span class="lozenge">Discord</span>
+                    </span>
+                  </h3>
+                  <p class="project-subtitle">Private Discord bot and monitoring dashboard</p>
+                </div>
+              </div>
+
+              <p class="project-desc">
+                A two-mode Discord bot that replies to DMs, mentions and replies with any OpenAI-compatible
+                endpoint. The installer runs the bot, password-protected dashboard and Watchtower from private
+                GHCR images, and keeps <code>data/</code> and <code>.env</code> across updates.
+              </p>
+
+              <ul class="tags" aria-label="Technologies">
+                <li class="tag">Docker Compose</li>
+                <li class="tag">GHCR</li>
+                <li class="tag">Discord</li>
+                <li class="tag">OpenAI</li>
+                <li class="tag">React</li>
+              </ul>
+
+              <div class="tabs" data-tabs>
+                <div class="tab-list" role="tablist" aria-label="AI Discord Bot commands">
+                  <button class="tab" type="button" role="tab" id="tab-ai-interactive" aria-controls="panel-ai-interactive" aria-selected="true">Interactive</button>
+                  <button class="tab" type="button" role="tab" id="tab-ai-unattended" aria-controls="panel-ai-unattended" aria-selected="false" tabindex="-1">Unattended</button>
+                  <button class="tab" type="button" role="tab" id="tab-ai-update" aria-controls="panel-ai-update" aria-selected="false" tabindex="-1">Update</button>
+                </div>
+
+                <div class="tab-panel" role="tabpanel" id="panel-ai-interactive" aria-labelledby="tab-ai-interactive">
+                  <div class="code-block">
+                    <pre><span class="prompt" aria-hidden="true">$</span><code id="cmd-ai-interactive">curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | bash</code></pre>
+                    <button class="btn" type="button" data-copy-target="cmd-ai-interactive" aria-label="Copy interactive install command">
+                      <svg class="icon icon-copy" aria-hidden="true"><use href="assets/icons.svg?v=500451243d#i-copy"/></svg>
+                      <svg class="icon icon-check" aria-hidden="true"><use href="assets/icons.svg?v=500451243d#i-check"/></svg>
+                      <span class="copy-label">Copy</span>
+                    </button>
+                  </div>
+                  <p>Installs or updates the bot, generates the dashboard login and starts the Compose stack. The app repository and image are private, so a fresh server needs <a href="AI-Discord-Bot/#install">GitHub and GHCR access</a>.</p>
+                </div>
+
+                <div class="tab-panel" role="tabpanel" id="panel-ai-unattended" aria-labelledby="tab-ai-unattended" hidden>
+                  <div class="code-block">
+                    <pre><span class="prompt" aria-hidden="true">$</span><code id="cmd-ai-unattended">curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | \
+  GITHUB_TOKEN=... GHCR_USER=Jerit3787 \
+  DISCORD_TOKEN=... OPENAI_API_KEY=... \
+  AI_DISCORD_BOT_NON_INTERACTIVE=1 bash</code></pre>
+                    <button class="btn" type="button" data-copy-target="cmd-ai-unattended" aria-label="Copy unattended install command">
+                      <svg class="icon icon-copy" aria-hidden="true"><use href="assets/icons.svg?v=500451243d#i-copy"/></svg>
+                      <svg class="icon icon-check" aria-hidden="true"><use href="assets/icons.svg?v=500451243d#i-check"/></svg>
+                      <span class="copy-label">Copy</span>
+                    </button>
+                  </div>
+                  <p>No prompts. A fresh unattended install needs the Discord token and API key; the dashboard password is generated and printed once. Add <code>DASHBOARD_HOST_IP</code> to publish it on a Tailscale or LAN address.</p>
+                </div>
+
+                <div class="tab-panel" role="tabpanel" id="panel-ai-update" aria-labelledby="tab-ai-update" hidden>
+                  <div class="code-block">
+                    <pre><span class="prompt" aria-hidden="true">$</span><code id="cmd-ai-update">curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | bash
+
+# Image-only update
+discord-bot update</code></pre>
+                    <button class="btn" type="button" data-copy-target="cmd-ai-update" aria-label="Copy update command">
+                      <svg class="icon icon-copy" aria-hidden="true"><use href="assets/icons.svg?v=500451243d#i-copy"/></svg>
+                      <svg class="icon icon-check" aria-hidden="true"><use href="assets/icons.svg?v=500451243d#i-check"/></svg>
+                      <span class="copy-label">Copy</span>
+                    </button>
+                  </div>
+                  <p>Re-running preserves <code>.env</code> and <code>data/</code>, fast-forwards the checkout and recreates the containers. The dashboard <strong>Update bot</strong> button uses Watchtower for the bot image only.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="card-footer">
+              <div class="btn-group">
+                <a class="btn btn-primary" href="AI-Discord-Bot/">Open project page</a>
+                <a class="btn btn-subtle" href="https://github.com/Jerit3787/ai-discord-bot" target="_blank" rel="noopener">
+                  Source <svg class="icon" aria-hidden="true"><use href="assets/icons.svg?v=500451243d#i-external"/></svg>
+                </a>
+                <a class="btn btn-subtle" href="https://github.com/Jerit3787/scripts/blob/main/AI-Discord-Bot/README.md" target="_blank" rel="noopener">
+                  Docs <svg class="icon" aria-hidden="true"><use href="assets/icons.svg?v=500451243d#i-external"/></svg>
+                </a>
+              </div>
+              <ul class="file-chips" aria-label="Scripts in this project">
+                <li><a href="AI-Discord-Bot/setup.sh" data-view-script data-source="https://github.com/Jerit3787/scripts/blob/main/AI-Discord-Bot/setup.sh" data-description="AI Discord Bot installer">setup.sh</a></li>
+              </ul>
+            </div>
+          </article>
+
           <div class="empty-state">
             <span class="empty-state-art" aria-hidden="true"><svg class="icon-24"><use href="assets/icons.svg?v=500451243d#i-folder-plus"/></svg></span>
             <div>
@@ -235,6 +334,11 @@
 │   ├── reset.sh
 │   ├── README.md
 │   └── index.html  <span class="dim"># project page</span>
+├── <span class="hl">AI-Discord-Bot/</span>
+│   ├── setup.sh
+│   ├── README.md
+│   ├── index.html  <span class="dim"># project page</span>
+│   └── logo.svg
 └── <span class="dim">next-project/</span>
     ├── setup.sh
     └── README.md</pre>
@@ -249,6 +353,7 @@
       <ul class="footer-links">
         <li><a href="https://github.com/Jerit3787/scripts" target="_blank" rel="noopener">GitHub</a></li>
         <li><a href="https://github.com/Jerit3787/IDPS-WebServer" target="_blank" rel="noopener">CAIDPS source</a></li>
+        <li><a href="https://github.com/Jerit3787/ai-discord-bot" target="_blank" rel="noopener">AI Discord Bot source</a></li>
         <li><a href="https://danplace.tech" target="_blank" rel="noopener">danplace.tech</a></li>
       </ul>
     </div>

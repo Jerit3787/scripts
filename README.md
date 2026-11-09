@@ -31,6 +31,38 @@ Details, current options and environment variables: [`IDPS-WebServer/README.md`]
 
 ---
 
+## AI Discord Bot (`AI-Discord-Bot/`)
+
+Private Discord bot and monitoring dashboard: installer for the private GHCR images, generated
+dashboard login, Docker Compose and Watchtower updates.
+
+Project page: **[scripts.danplace.tech/AI-Discord-Bot](https://scripts.danplace.tech/AI-Discord-Bot/)**
+
+```bash
+# Interactive install (or update)
+curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | bash
+
+# Fresh unattended install. Put tokens on the bash side, not on curl.
+curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | \
+  GITHUB_TOKEN=... GHCR_USER=Jerit3787 \
+  DISCORD_TOKEN=... OPENAI_API_KEY=... \
+  AI_DISCORD_BOT_NON_INTERACTIVE=1 bash
+
+# Image-only update without re-running the installer
+discord-bot update
+```
+
+The installer clones or fast-forwards `Jerit3787/ai-discord-bot`, keeps existing `.env` and
+`data/`, generates the dashboard password and session secret, detects the Docker socket group and
+config, logs in to GHCR, pulls the private `:bot` or `:user` image and starts the bot, dashboard and
+Watchtower. The dashboard uses username/password login; Watchtower updates only the labeled bot
+container.
+
+Details, token scopes, options and environment variables:
+[`AI-Discord-Bot/README.md`](AI-Discord-Bot/README.md).
+
+---
+
 ## Directory structure
 
 ```
@@ -46,14 +78,19 @@ Details, current options and environment variables: [`IDPS-WebServer/README.md`]
 │   └── icons.svg          # SVG icon sprite
 ├── tools/
 │   └── stamp-assets.sh    # stamps ?v=<hash> on asset URLs in every page
-└── IDPS-WebServer/
-    ├── setup.sh           # CAIDPS installer and setup wizard
-    ├── reset.sh           # CAIDPS teardown / factory reset
-    ├── README.md          # developer/operator details
-    ├── index.html         # CAIDPS project page
-    ├── logo.svg           # CAIDPS mark (copied from IDPS-WebServer frontend-react/public/logo.svg)
-    └── tests/
-        └── run-tests.sh   # stub-driven bash tests
+├── IDPS-WebServer/
+│   ├── setup.sh           # CAIDPS installer and setup wizard
+│   ├── reset.sh           # CAIDPS teardown / factory reset
+│   ├── README.md          # developer/operator details
+│   ├── index.html         # CAIDPS project page
+│   ├── logo.svg           # CAIDPS mark (copied from IDPS-WebServer frontend-react/public/logo.svg)
+│   └── tests/
+│       └── run-tests.sh   # stub-driven bash tests
+└── AI-Discord-Bot/
+    ├── setup.sh           # AI Discord Bot installer
+    ├── README.md          # token scopes, options and operations
+    ├── index.html         # AI Discord Bot project page
+    └── logo.svg           # project mark
 ```
 
 ## Adding a project

@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Discord Bot installer | scripts.danplace.tech</title>
+  <meta name="description" content="One-line installer for the AI Discord Bot: private GHCR images, Docker Compose, password-protected dashboard, generated login and Watchtower updates.">
+  <link rel="canonical" href="https://scripts.danplace.tech/AI-Discord-Bot/">
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1D2125" media="(prefers-color-scheme: dark)">
+  <meta property="og:title" content="AI Discord Bot | scripts.danplace.tech">
+  <meta property="og:description" content="Installer for a private Discord bot and dashboard with Docker Compose, GHCR and Watchtower.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://scripts.danplace.tech/AI-Discord-Bot/">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <script>
+    try {
+      var t = localStorage.getItem('ds-theme');
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="../assets/site.css?v=500451243d">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="topnav">
+    <div class="topnav-inner">
+      <a class="product" href="../" aria-label="Scripts catalog home">
+        <span class="product-logo" aria-hidden="true"><svg class="icon"><use href="../assets/icons.svg?v=500451243d#i-terminal"/></svg></span>
+        <span>Scripts <span class="product-site">danplace.tech</span></span>
+      </a>
+      <nav aria-label="Primary">
+        <ul class="nav-items">
+          <li><a class="nav-item" href="../">Catalog</a></li>
+          <li><a class="nav-item" href="../IDPS-WebServer/">CAIDPS</a></li>
+          <li><a class="nav-item" href="./" aria-current="page">AI Discord Bot</a></li>
+        </ul>
+      </nav>
+      <div class="topnav-end">
+        <a class="btn btn-subtle hide-small" href="https://danplace.tech" target="_blank" rel="noopener">danplace.tech</a>
+        <a class="btn btn-subtle btn-icon" href="https://github.com/Jerit3787/scripts" target="_blank" rel="noopener" aria-label="Scripts repository on GitHub" title="Scripts repository on GitHub">
+          <svg class="icon" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-github"/></svg>
+        </a>
+        <button class="btn btn-subtle btn-icon theme-toggle" type="button" data-theme-toggle aria-label="Switch theme">
+          <svg class="icon icon-moon" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-moon"/></svg>
+          <svg class="icon icon-sun" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-sun"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="page">
+    <nav class="breadcrumbs" aria-label="Breadcrumb">
+      <ol>
+        <li><a href="../">Scripts</a></li>
+        <li><span aria-current="page">AI-Discord-Bot</span></li>
+      </ol>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-header-main">
+        <div class="page-title-row">
+          <img class="project-logo project-logo-large" src="logo.svg" width="48" height="48" alt="">
+          <div>
+            <h1 class="page-title">AI Discord Bot</h1>
+            <p class="subtlest">Private Discord bot and monitoring dashboard</p>
+          </div>
+        </div>
+        <p class="page-description">
+          Install the bot, dashboard and Watchtower from private GHCR images with one command. The
+          installer keeps <code>.env</code> and <code>data/</code>, generates the dashboard login and
+          starts the Compose stack with Docker.
+        </p>
+      </div>
+      <div class="btn-group">
+        <a class="btn" href="https://github.com/Jerit3787/scripts/blob/main/AI-Discord-Bot/README.md" target="_blank" rel="noopener">
+          <svg class="icon" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-book"/></svg>
+          Read the docs
+        </a>
+        <a class="btn btn-primary" href="https://github.com/Jerit3787/ai-discord-bot" target="_blank" rel="noopener">
+          <svg class="icon" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-github"/></svg>
+          View source
+        </a>
+      </div>
+    </div>
+
+    <div class="layout">
+      <div class="stack">
+        <section class="card" id="install" aria-labelledby="install-title">
+          <div class="card-body">
+            <h2 id="install-title" class="section-heading">Install</h2>
+            <p class="section-intro">Choose how this server should be set up. Run the same command again to update.</p>
+
+            <div class="tabs" data-tabs>
+              <div class="tab-list" role="tablist" aria-label="Install commands">
+                <button class="tab" type="button" role="tab" id="tab-interactive" data-hash="interactive" aria-controls="panel-interactive" aria-selected="true">Interactive</button>
+                <button class="tab" type="button" role="tab" id="tab-unattended" data-hash="unattended" aria-controls="panel-unattended" aria-selected="false" tabindex="-1">Unattended</button>
+                <button class="tab" type="button" role="tab" id="tab-update" data-hash="update" aria-controls="panel-update" aria-selected="false" tabindex="-1">Update</button>
+              </div>
+
+              <div class="tab-panel" role="tabpanel" id="panel-interactive" aria-labelledby="tab-interactive">
+                <div class="code-block">
+                  <pre><span class="prompt" aria-hidden="true">$</span><code id="cmd-interactive">curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | bash</code></pre>
+                  <button class="btn" type="button" data-copy-target="cmd-interactive" aria-label="Copy interactive install command">
+                    <svg class="icon icon-copy" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-copy"/></svg>
+                    <svg class="icon icon-check" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-check"/></svg>
+                    <span class="copy-label">Copy</span>
+                  </button>
+                </div>
+                <p>Clones or fast-forwards the private app into <code>/opt/ai-discord-bot</code>, asks for the bot settings, generates the dashboard login and starts the stack. Requires GitHub access to the private repository.</p>
+
+                <div class="alt-command">
+                  <div class="alt-command-head">
+                    <h3 class="heading-xsmall">Prefer to read it first?</h3>
+                    <a class="link-button" href="setup.sh" data-view-script data-source="https://github.com/Jerit3787/scripts/blob/main/AI-Discord-Bot/setup.sh" data-description="AI Discord Bot installer">Open setup.sh in the viewer</a>
+                  </div>
+                  <div class="code-block">
+                    <pre><span class="prompt" aria-hidden="true">$</span><code id="cmd-download">curl -fsSLO https://scripts.danplace.tech/AI-Discord-Bot/setup.sh &amp;&amp; less setup.sh &amp;&amp; bash setup.sh</code></pre>
+                    <button class="btn" type="button" data-copy-target="cmd-download" aria-label="Copy download-first command">
+                      <svg class="icon icon-copy" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-copy"/></svg>
+                      <svg class="icon icon-check" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-check"/></svg>
+                      <span class="copy-label">Copy</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="tab-panel" role="tabpanel" id="panel-unattended" aria-labelledby="tab-unattended" hidden>
+                <div class="code-block">
+                  <pre><span class="prompt" aria-hidden="true">$</span><code id="cmd-unattended">curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | \
+  GITHUB_TOKEN='&lt;repo + read:packages PAT&gt;' \
+  GHCR_USER=Jerit3787 \
+  DISCORD_TOKEN='&lt;bot token&gt;' \
+  OPENAI_API_KEY='&lt;OpenAI-compatible key&gt;' \
+  TOKEN_MODE=bot DASHBOARD_HOST_IP=100.64.0.10 \
+  AI_DISCORD_BOT_NON_INTERACTIVE=1 bash</code></pre>
+                  <button class="btn" type="button" data-copy-target="cmd-unattended" aria-label="Copy unattended install command">
+                    <svg class="icon icon-copy" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-copy"/></svg>
+                    <svg class="icon icon-check" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-check"/></svg>
+                    <span class="copy-label">Copy</span>
+                  </button>
+                </div>
+                <p>No prompts. A fresh unattended install needs the Discord token and API key; the dashboard password is generated and printed once. Set <code>GHCR_TOKEN</code> separately if <code>GITHUB_TOKEN</code> does not have <code>read:packages</code>.</p>
+              </div>
+
+              <div class="tab-panel" role="tabpanel" id="panel-update" aria-labelledby="tab-update" hidden>
+                <div class="code-block">
+                  <pre><span class="prompt" aria-hidden="true">$</span><code id="cmd-update">curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | \
+  GITHUB_TOKEN='&lt;repo PAT&gt;' bash
+
+# Or update the images without re-running the installer
+discord-bot update</code></pre>
+                  <button class="btn" type="button" data-copy-target="cmd-update" aria-label="Copy update command">
+                    <svg class="icon icon-copy" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-copy"/></svg>
+                    <svg class="icon icon-check" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-check"/></svg>
+                    <span class="copy-label">Copy</span>
+                  </button>
+                </div>
+                <p>The checkout is fast-forwarded, <code>.env</code> and <code>data/</code> are kept, the current image is pulled and the containers are recreated. Use <code>--no-git-update</code> when the checkout is managed separately.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section-message" aria-labelledby="private-title">
+          <svg class="icon-24" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-info"/></svg>
+          <div class="section-message-body">
+            <h2 id="private-title" class="heading-small">The repository and image are private</h2>
+            <p>On a fresh server, give bash a GitHub token (not curl), sign in with <code>gh auth login</code>, or use an SSH key. The image pull needs a PAT with <code>read:packages</code>; <code>GHCR_USER</code> is the account that owns that token. Tokens are used for the run only and are not written into <code>.git/config</code>.</p>
+            <div class="section-message-actions">
+              <button class="link-button" type="button" data-copy="curl -fsSL https://scripts.danplace.tech/AI-Discord-Bot/setup.sh | GITHUB_TOKEN=... GHCR_USER=Jerit3787 bash" data-copy-flag="Token command copied">Copy the command with a token</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="stack-tight" id="features" aria-labelledby="features-title">
+          <div>
+            <h2 id="features-title" class="section-heading">What the installer sets up</h2>
+            <p class="section-intro">Everything below is configured by the installer. Existing secrets and data are left alone.</p>
+          </div>
+          <div class="card feature-grid">
+            <div class="feature">
+              <span class="icon-tile icon-tile-large tile-blue" aria-hidden="true"><svg class="icon"><use href="../assets/icons.svg?v=500451243d#i-terminal"/></svg></span>
+              <div>
+                <h3 class="heading-xsmall">Private bootstrap</h3>
+                <p>Clones <code>Jerit3787/ai-discord-bot</code>, logs in to GHCR and pulls the <code>:bot</code> or <code>:user</code> image. No Node or Python runtime is needed on the host for the bot.</p>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="icon-tile icon-tile-large tile-purple" aria-hidden="true"><svg class="icon"><use href="../assets/icons.svg?v=500451243d#i-layers"/></svg></span>
+              <div>
+                <h3 class="heading-xsmall">Two token modes</h3>
+                <p>Official <code>discord.py</code> bot mode or <code>discord.py-self</code> user mode. The installer keeps <code>TOKEN_MODE</code> and <code>CONTAINER_TAG</code> aligned and warns about the self-bot ToS risk.</p>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="icon-tile icon-tile-large tile-green" aria-hidden="true"><svg class="icon"><use href="../assets/icons.svg?v=500451243d#i-eye"/></svg></span>
+              <div>
+                <h3 class="heading-xsmall">Dashboard login</h3>
+                <p>Generates a scrypt password hash, signed HttpOnly cookie session secret and CSRF-protected login. The password is printed once and never stored in plaintext.</p>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="icon-tile icon-tile-large tile-orange" aria-hidden="true"><svg class="icon"><use href="../assets/icons.svg?v=500451243d#i-refresh"/></svg></span>
+              <div>
+                <h3 class="heading-xsmall">One-click updates</h3>
+                <p>Watchtower watches only the labeled bot container, pulls the private image and removes superseded images. The dashboard's <strong>Update bot</strong> button calls it with a generated token.</p>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="icon-tile icon-tile-large tile-blue" aria-hidden="true"><svg class="icon"><use href="../assets/icons.svg?v=500451243d#i-folder"/></svg></span>
+              <div>
+                <h3 class="heading-xsmall">Data-safe re-runs</h3>
+                <p>Every run preserves <code>.env</code>, <code>data/</code>, the database and the dashboard login. The previous environment is saved as <code>.env.bak</code> before a write.</p>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="icon-tile icon-tile-large tile-green" aria-hidden="true"><svg class="icon"><use href="../assets/icons.svg?v=500451243d#i-check"/></svg></span>
+              <div>
+                <h3 class="heading-xsmall">Host controls</h3>
+                <p>Detects the Docker socket group and config path for the dashboard Logs tab, service controls and Watchtower. Links the <code>discord-bot</code> command when possible.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="stack-tight" id="walkthrough" aria-labelledby="walkthrough-title">
+          <div>
+            <h2 id="walkthrough-title" class="section-heading">Wizard walkthrough</h2>
+            <p class="section-intro">The questions a fresh interactive install asks.</p>
+          </div>
+          <div class="card card-body">
+            <ol class="steps">
+              <li>
+                <div>
+                  <p class="step-question">Where should it live?</p>
+                  <p class="subtle">Default <code>/opt/ai-discord-bot</code> on Linux. Existing checkouts are reused.</p>
+                </div>
+              </li>
+              <li>
+                <div>
+                  <p class="step-question">Which Discord token mode?</p>
+                  <ul class="choices">
+                    <li class="choice is-default"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-check"/></svg>bot — supported, ToS-safe</li>
+                    <li class="choice">user — self-bot, ban risk</li>
+                  </ul>
+                </div>
+              </li>
+              <li>
+                <div>
+                  <p class="step-question">Where should the dashboard listen?</p>
+                  <p class="subtle">A Tailscale or private LAN IPv4 address, or <code>127.0.0.1</code> for local-only access.</p>
+                </div>
+              </li>
+              <li>
+                <div>
+                  <p class="step-question">OpenAI-compatible endpoint and Discord token</p>
+                  <p class="subtle">The API key, base URL, model and the matching bot or user token. Secrets are hidden.</p>
+                </div>
+              </li>
+              <li>
+                <div>
+                  <p class="step-question">Dashboard password</p>
+                  <p class="subtle">Enter one, or press Enter to generate a random password. The generated value is printed once.</p>
+                </div>
+              </li>
+              <li>
+                <div>
+                  <p class="step-question">Pull and start</p>
+                  <p class="subtle">Logs in to GHCR, pulls the image, starts the bot, dashboard and Watchtower, then prints the URL and login.</p>
+                </div>
+              </li>
+            </ol>
+          </div>
+          <pre class="log" aria-label="Example installer output"><span class="ok">[setup]</span> Cloning Jerit3787/ai-discord-bot (main) into /opt/ai-discord-bot...
+<span class="ok">[setup]</span> Wrote /opt/ai-discord-bot/.env (mode: bot, image: bot).
+<span class="ok">[setup]</span> Logged in to GHCR as Jerit3787.
+<span class="ok">[setup]</span> Starting the Compose stack...
+<span class="ok">[setup]</span> AI Discord Bot is ready
+  dashboard:  http://100.64.0.10:8787
+  login:      admin
+  password:   ••••••••••••••••••••</pre>
+        </section>
+
+        <section class="card" id="reference" aria-labelledby="reference-title">
+          <div class="card-body">
+            <h2 id="reference-title" class="section-heading">Reference</h2>
+            <p class="section-intro">Pass flags after <code>bash -s --</code>, and environment variables before <code>bash</code>.</p>
+
+            <div class="tabs" data-tabs>
+              <div class="tab-list" role="tablist" aria-label="Reference">
+                <button class="tab" type="button" role="tab" id="tab-ref-flags" data-hash="flags" aria-controls="panel-ref-flags" aria-selected="true">Installer flags</button>
+                <button class="tab" type="button" role="tab" id="tab-ref-env" data-hash="environment" aria-controls="panel-ref-env" aria-selected="false" tabindex="-1">Environment</button>
+              </div>
+
+              <div class="tab-panel" role="tabpanel" id="panel-ref-flags" aria-labelledby="tab-ref-flags">
+                <div class="table-wrap">
+                  <table class="table">
+                    <thead><tr><th scope="col">Flag</th><th scope="col">Effect</th></tr></thead>
+                    <tbody>
+                      <tr><td><code>--non-interactive</code></td><td>Skip prompts. Required values come from the environment.</td></tr>
+                      <tr><td><code>--dir PATH</code></td><td>Install path. <span class="default">Default <code>/opt/ai-discord-bot</code> on Linux.</span></td></tr>
+                      <tr><td><code>--branch NAME</code></td><td>Git branch. <span class="default">Default <code>main</code>.</span></td></tr>
+                      <tr><td><code>--token-mode bot|user</code></td><td>Select the Discord token type. <span class="default">Default <code>bot</code>.</span></td></tr>
+                      <tr><td><code>--dashboard-ip IP</code></td><td>Host interface to publish the dashboard on.</td></tr>
+                      <tr><td><code>--dashboard-port PORT</code></td><td>Dashboard port on the host and inside the container. <span class="default">Default <code>8787</code>.</span></td></tr>
+                      <tr><td><code>--dashboard-password VALUE</code></td><td>Reset the dashboard password.</td></tr>
+                      <tr><td><code>--no-watchtower</code></td><td>Start only the bot and dashboard.</td></tr>
+                      <tr><td><code>--no-cli</code></td><td>Do not link the <code>discord-bot</code> command.</td></tr>
+                      <tr><td><code>--no-start</code></td><td>Configure <code>.env</code> and <code>data/</code>, but do not pull or start.</td></tr>
+                      <tr><td><code>--no-git-update</code></td><td>Use an existing checkout without <code>git fetch</code>/fast-forward.</td></tr>
+                      <tr><td><code>--dry-run</code></td><td>Print the resolved plan. Nothing is written, pulled or started.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="tab-panel" role="tabpanel" id="panel-ref-env" aria-labelledby="tab-ref-env" hidden>
+                <div class="table-wrap">
+                  <table class="table">
+                    <thead><tr><th scope="col">Variable</th><th scope="col">Effect</th></tr></thead>
+                    <tbody>
+                      <tr><td><code>GITHUB_TOKEN</code>, <code>GH_TOKEN</code></td><td>Private repository token for this run. Reused for GHCR when <code>GHCR_TOKEN</code> is unset.</td></tr>
+                      <tr><td><code>GHCR_TOKEN</code></td><td>PAT with <code>read:packages</code> for the private image.</td></tr>
+                      <tr><td><code>GHCR_USER</code></td><td>GitHub account that owns the GHCR token. <span class="default">Default: the authenticated <code>gh</code> account.</span></td></tr>
+                      <tr><td><code>AI_DISCORD_BOT_INSTALL_DIR</code></td><td>Install path.</td></tr>
+                      <tr><td><code>AI_DISCORD_BOT_BRANCH</code></td><td>Branch. <span class="default">Default <code>main</code>.</span></td></tr>
+                      <tr><td><code>AI_DISCORD_BOT_NON_INTERACTIVE=1</code></td><td>Same as <code>--non-interactive</code>. <code>CI=1</code> also works.</td></tr>
+                      <tr><td><code>AI_DISCORD_BOT_NO_GIT_UPDATE=1</code></td><td>Same as <code>--no-git-update</code>.</td></tr>
+                      <tr><td><code>TOKEN_MODE</code></td><td><code>bot</code> or <code>user</code>. <span class="default">Default <code>bot</code>.</span></td></tr>
+                      <tr><td><code>DISCORD_TOKEN</code></td><td>Bot token, or user token in user mode. Required on a fresh install.</td></tr>
+                      <tr><td><code>OPENAI_API_KEY</code></td><td>OpenAI-compatible API key. Required on a fresh install.</td></tr>
+                      <tr><td><code>OPENAI_BASE_URL</code></td><td>Endpoint. <span class="default">Default <code>https://api.openai.com/v1</code>.</span></td></tr>
+                      <tr><td><code>AI_MODEL</code></td><td>Model name. <span class="default">Default <code>gpt-4o-mini</code>.</span></td></tr>
+                      <tr><td><code>OWNER_ID</code>, <code>GIPHY_API_KEY</code></td><td>Optional owner ID and GIF search key.</td></tr>
+                      <tr><td><code>DASHBOARD_HOST_IP</code>, <code>DASHBOARD_PORT</code></td><td>Host interface and port for the dashboard; the port is used on both sides of the mapping.</td></tr>
+                      <tr><td><code>DASHBOARD_USER</code>, <code>DASHBOARD_PASSWORD</code></td><td>Login user and optional password reset value.</td></tr>
+                      <tr><td><code>DOCKER_GID</code>, <code>DOCKER_CONFIG_FILE</code></td><td>Socket group and host Docker config. Both are detected by default.</td></tr>
+                      <tr><td><code>GHCR_OWNER</code>, <code>CONTAINER_TAG</code></td><td>Image owner and tag. <span class="default">Defaults <code>jerit3787</code> and the token mode.</span></td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <p class="subtle">Every option, with examples, is in the README.</p>
+            <a class="btn btn-subtle" href="https://github.com/Jerit3787/scripts/blob/main/AI-Discord-Bot/README.md#options" target="_blank" rel="noopener">
+              Full reference <svg class="icon" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-external"/></svg>
+            </a>
+          </div>
+        </section>
+
+        <section class="stack-tight" id="security" aria-labelledby="security-title">
+          <div>
+            <h2 id="security-title" class="section-heading">Security notes</h2>
+          </div>
+          <div class="outcomes">
+            <div class="outcome outcome-keep">
+              <h4><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-eye"/></svg>Kept private</h4>
+              <ul>
+                <li>Tokens and the dashboard password hash stay in <code>.env</code> with mode <code>600</code>.</li>
+                <li>GHCR credentials live in the installing user's <code>~/.docker/config.json</code>.</li>
+                <li>The dashboard binds to a single private interface unless you choose otherwise.</li>
+                <li>Existing <code>data/</code>, the SQLite database and <code>.env</code> survive updates.</li>
+              </ul>
+            </div>
+            <div class="outcome outcome-remove">
+              <h4><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-warning"/></svg>Watch out</h4>
+              <ul>
+                <li><code>TOKEN_MODE=user</code> is a self-bot and can get the Discord account banned.</li>
+                <li><code>DASHBOARD_HOST_IP=0.0.0.0</code> exposes the dashboard on every interface.</li>
+                <li>The dashboard mounts the Docker socket; keep its login strong.</li>
+                <li>Watchtower updates only the bot container. Update the dashboard with the installer or <code>discord-bot update</code>.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <aside aria-label="Project details">
+        <section class="panel" aria-labelledby="before-title">
+          <h2 id="before-title" class="panel-title">Before you start</h2>
+          <ul class="checklist">
+            <li>
+              <svg class="icon" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-check"/></svg>
+              <div>
+                <h3 class="heading-xsmall">Linux server</h3>
+                <p>Docker Engine with Compose v2. macOS works with Docker Desktop; Linux is the primary target.</p>
+              </div>
+            </li>
+            <li>
+              <svg class="icon" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-check"/></svg>
+              <div>
+                <h3 class="heading-xsmall">GitHub access</h3>
+                <p>A token, <code>gh auth login</code>, or an SSH key for the private repository, plus a PAT with <code>read:packages</code> for GHCR.</p>
+              </div>
+            </li>
+            <li>
+              <svg class="icon" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-check"/></svg>
+              <div>
+                <h3 class="heading-xsmall">A private address</h3>
+                <p>Tailscale or a private LAN address for the dashboard. <code>127.0.0.1</code> keeps it local.</p>
+              </div>
+            </li>
+          </ul>
+        </section>
+
+        <section class="panel" aria-labelledby="details-title">
+          <h2 id="details-title" class="panel-title">Details</h2>
+          <dl class="details">
+            <dt>Runtime</dt>
+            <dd>Docker Compose</dd>
+            <dt>Images</dt>
+            <dd>Private GHCR</dd>
+            <dt>Install path</dt>
+            <dd><code>/opt/ai-discord-bot</code></dd>
+            <dt>Branch</dt>
+            <dd><code>main</code></dd>
+            <dt>Dashboard</dt>
+            <dd><code>:8787</code></dd>
+            <dt>Updates</dt>
+            <dd>Watchtower + dashboard button</dd>
+            <dt>Data</dt>
+            <dd><code>data/</code></dd>
+          </dl>
+        </section>
+
+        <section class="panel" aria-labelledby="files-title">
+          <h2 id="files-title" class="panel-title">Files</h2>
+          <ul class="file-list">
+            <li><a href="setup.sh" data-view-script data-source="https://github.com/Jerit3787/scripts/blob/main/AI-Discord-Bot/setup.sh" data-description="AI Discord Bot installer"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-file-code"/></svg><span class="file-name">setup.sh</span><span class="file-meta">Installer</span></a></li>
+            <li><a href="https://github.com/Jerit3787/scripts/blob/main/AI-Discord-Bot/README.md" target="_blank" rel="noopener"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg?v=500451243d#i-file"/></svg><span class="file-name">README.md</span><span class="file-meta">Docs</span></a></li>
+          </ul>
+        </section>
+
+        <nav class="panel toc" aria-labelledby="toc-title">
+          <h2 id="toc-title" class="panel-title">On this page</h2>
+          <ol>
+            <li><a href="#install">Install</a></li>
+            <li><a href="#features">What the installer sets up</a></li>
+            <li><a href="#walkthrough">Wizard walkthrough</a></li>
+            <li><a href="#reference">Reference</a></li>
+            <li><a href="#security">Security notes</a></li>
+          </ol>
+        </nav>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer-inner">
+      <p>AI Discord Bot is part of <a href="../">scripts.danplace.tech</a>. Review each script before running it.</p>
+      <ul class="footer-links">
+        <li><a href="https://github.com/Jerit3787/scripts" target="_blank" rel="noopener">Scripts repo</a></li>
+        <li><a href="https://github.com/Jerit3787/ai-discord-bot" target="_blank" rel="noopener">AI Discord Bot source</a></li>
+        <li><a href="https://danplace.tech" target="_blank" rel="noopener">danplace.tech</a></li>
+      </ul>
+    </div>
+  </footer>
+
+  <script src="../assets/site.js?v=500451243d"></script>
+</body>
+</html>
