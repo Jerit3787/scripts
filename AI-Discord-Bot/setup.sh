@@ -516,7 +516,7 @@ main() {
     tmp="$(mktemp "${TARGET_DIR}/.env.tmp.XXXXXX")" || die "Could not create a temporary .env."
     ENV_TMP="$tmp"
     if [ -f "$ENV_FILE" ]; then
-      awk -v keys="$MANAGED_KEYS" '
+      tr -d '\r' < "$ENV_FILE" | awk -v keys="$MANAGED_KEYS" '
         BEGIN { n=split(keys, a, " "); for (i=1; i<=n; i++) drop[a[i]]=1 }
         {
           key=$0
@@ -525,7 +525,7 @@ main() {
           if (key in drop) next
           print
         }
-      ' "$ENV_FILE" > "$tmp" || die "Could not read the existing .env."
+      ' > "$tmp" || die "Could not read the existing .env."
     fi
     {
       env_line OPENAI_API_KEY "$OPENAI_API_KEY"
